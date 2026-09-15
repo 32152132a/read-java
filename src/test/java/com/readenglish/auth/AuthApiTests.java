@@ -133,6 +133,64 @@ class AuthApiTests {
     }
   }
 
+  @Test
+  void wechatLoginRefreshesAndRevokesRefreshToken() throws Exception {
+    try (var client = HttpClient.newHttpClient()) {
+      var loginResponse =
+          client.send(
+              request("/api/v1/auth/wechat/login")
+                  .header("Content-Type", "application/json")
+                  .POST(HttpRequest.BodyPublishers.ofString("{\"code\":\"test-wechat-code\"}"))
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      JsonNode loginData = objectMapper.readTree(loginResponse.body()).path("data");
+      String firstRefreshToken = loginData.path("refreshToken").stringValue();
+
+      assertThat(loginResponse.statusCode()).isEqualTo(200);
+      assertThat(firstRefreshToken).isNotBlank();
+      assertThat(loginData.path("newUser").booleanValue()).isTrue();
+
+      var refreshResponse =
+          client.send(
+              request("/api/v1/auth/refresh")
+                  .header("Content-Type", "application/json")
+                  .POST(
+                      HttpRequest.BodyPublishers.ofString(
+                          "{\"refreshToken\":\"" + firstRefreshToken + "\"}"))
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      JsonNode refreshedData = objectMapper.readTree(refreshResponse.body()).path("data");
+      String accessToken = refreshedData.path("accessToken").stringValue();
+      String rotatedRefreshToken = refreshedData.path("refreshToken").stringValue();
+
+      assertThat(refreshResponse.statusCode()).isEqualTo(200);
+      assertThat(rotatedRefreshToken).isNotEqualTo(firstRefreshToken);
+
+      var reusedResponse =
+          client.send(
+              request("/api/v1/auth/refresh")
+                  .header("Content-Type", "application/json")
+                  .POST(
+                      HttpRequest.BodyPublishers.ofString(
+                          "{\"refreshToken\":\"" + firstRefreshToken + "\"}"))
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      assertThat(reusedResponse.statusCode()).isEqualTo(401);
+
+      var logoutResponse =
+          client.send(
+              request("/api/v1/auth/logout")
+                  .header("Authorization", "Bearer " + accessToken)
+                  .header("Content-Type", "application/json")
+                  .POST(
+                      HttpRequest.BodyPublishers.ofString(
+                          "{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      assertThat(logoutResponse.statusCode()).isEqualTo(200);
+    }
+  }
+
   private HttpRequest.Builder request(String path) {
     return HttpRequest.newBuilder().uri(URI.create("http://localhost:" + port + path));
   }

@@ -20,7 +20,7 @@ public final class JwtTokenService {
     this.jwtEncoder = jwtEncoder;
   }
 
-  public LoginResponse issueFor(UserProfile user) {
+  public LoginResponse issueFor(UserProfile user, String refreshToken, boolean newUser) {
     Instant issuedAt = Instant.now();
     Instant expiresAt = issuedAt.plus(properties.accessTokenTtl());
     var header = JwsHeader.with(MacAlgorithm.HS256).build();
@@ -36,6 +36,7 @@ public final class JwtTokenService {
             .claim("token_use", "access")
             .build();
     String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
-    return new LoginResponse(token, "Bearer", properties.accessTokenTtl().toSeconds(), user, true);
+    return new LoginResponse(
+        token, refreshToken, "Bearer", properties.accessTokenTtl().toSeconds(), user, newUser);
   }
 }

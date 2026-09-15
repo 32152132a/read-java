@@ -16,9 +16,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/users")
 public final class UserController {
 
+  private final UserService userService;
+
+  public UserController(UserService userService) {
+    this.userService = userService;
+  }
+
   @GetMapping("/me")
   public UserProfile me(@AuthenticationPrincipal Jwt jwt) {
-    return profileFrom(jwt, jwt.getClaimAsString("accent"));
+    return userService.getProfile(jwt.getSubject());
+  }
+
+  @GetMapping("/me/stats")
+  public UserStats stats(@AuthenticationPrincipal Jwt jwt) {
+    return userService.getStats(jwt.getSubject());
   }
 
   @PatchMapping("/me/preferences")
@@ -27,11 +38,6 @@ public final class UserController {
     if (!"US".equals(request.accentPreference())) {
       throw new ApiException(HttpStatus.BAD_REQUEST, "PREFERENCE_NOT_SUPPORTED", "当前仅支持美式英语发音");
     }
-    return profileFrom(jwt, request.accentPreference());
-  }
-
-  private static UserProfile profileFrom(Jwt jwt, String accentPreference) {
-    return new UserProfile(
-        jwt.getSubject(), jwt.getClaimAsString("nickname"), null, accentPreference);
+    return userService.updateAccent(jwt.getSubject(), request.accentPreference());
   }
 }

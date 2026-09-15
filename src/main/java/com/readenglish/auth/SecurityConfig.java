@@ -44,6 +44,8 @@ public class SecurityConfig {
                     .requestMatchers(
                         "/api/v1/health",
                         "/api/v1/auth/dev/login",
+                        "/api/v1/auth/wechat/login",
+                        "/api/v1/auth/refresh",
                         "/actuator/health",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
