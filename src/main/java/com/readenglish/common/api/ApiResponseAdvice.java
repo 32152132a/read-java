@@ -30,6 +30,9 @@ public final class ApiResponseAdvice implements ResponseBodyAdvice<Object> {
       Class<? extends HttpMessageConverter<?>> selectedConverterType,
       org.springframework.http.server.ServerHttpRequest serverRequest,
       org.springframework.http.server.ServerHttpResponse serverResponse) {
+    if (body instanceof ApiResponse<?>) {
+      return body;
+    }
     return ApiResponse.success(body, RequestIdFilter.getRequestId(request));
   }
 }

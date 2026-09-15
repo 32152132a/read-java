@@ -22,8 +22,18 @@
 
 服务默认监听 8080 端口。启动后访问 `http://localhost:8080/actuator/health`，应收到 HTTP 200 和 `{"status":"UP"}`。业务联调健康接口为 `http://localhost:8080/api/v1/health`，返回统一的 `{ code, message, data, requestId }` 响应。
 
+本地默认启用 `local` profile，可调用 `POST /api/v1/auth/dev/login` 获取临时 JWT：
+
+```json
+{ "nickname": "永庆" }
+```
+
+将响应中的 `accessToken` 作为 `Authorization: Bearer <token>` 请求 `GET /api/v1/users/me`。接口文档地址为 `http://localhost:8080/swagger-ui/index.html`。
+
+非本地环境必须通过 `JWT_ACCESS_SECRET` 提供至少 32 字节的随机密钥，且不会开放临时登录接口。
+
 测试会在随机端口启动应用，实际请求健康检查接口并验证结果。命令行启动后按 Ctrl+C 停止服务。
 
 ## 当前范围
 
-已提供可运行的基础工程、健康检查、请求 ID、统一响应和异常处理，尚未配置 MySQL 连接和具体业务模块。后续数据库密码不要提交到仓库。
+已提供可运行的基础工程、健康检查、请求 ID、统一响应、参数校验、异常处理、OpenAPI、JWT 鉴权、开发环境临时登录和当前用户接口。尚未配置 MySQL，用户与刷新令牌持久化将在数据库可用后接入。后续数据库密码不要提交到仓库。

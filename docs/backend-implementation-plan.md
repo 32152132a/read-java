@@ -28,6 +28,6 @@
 - [x] Java 格式检查
 - [x] 请求 ID 和统一响应
 - [x] 全局异常转换
-- [ ] OpenAPI
-- [ ] JWT 与开发环境临时登录
+- [x] OpenAPI
+- [x] JWT 与开发环境临时登录
 - [ ] Flyway 与 MySQL 首批迁移
