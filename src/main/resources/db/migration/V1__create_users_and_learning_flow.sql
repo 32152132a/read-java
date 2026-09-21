@@ -5,8 +5,8 @@ CREATE TABLE users (
     nickname VARCHAR(40) NOT NULL,
     avatar_url VARCHAR(500) NULL,
     accent VARCHAR(8) NOT NULL DEFAULT 'US',
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT uk_users_wechat_openid UNIQUE (wechat_openid)
 );
 
@@ -27,7 +27,7 @@ CREATE TABLE refresh_tokens (
     token_hash VARCHAR(64) NOT NULL,
     expires_at TIMESTAMP(6) NOT NULL,
     revoked_at TIMESTAMP(6) NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_refresh_token_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT uk_refresh_token_hash UNIQUE (token_hash)
 );
@@ -37,7 +37,7 @@ CREATE TABLE learning_flow_configs (
     user_id VARCHAR(64) NOT NULL,
     version BIGINT NOT NULL,
     active BOOLEAN NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_flow_config_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT uk_flow_config_version UNIQUE (user_id, version)
 );
@@ -60,8 +60,8 @@ CREATE TABLE learning_flow_runs (
     current_position INT NOT NULL,
     status VARCHAR(20) NOT NULL,
     active BOOLEAN NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_flow_run_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_flow_run_config FOREIGN KEY (config_id) REFERENCES learning_flow_configs (id)
 );
@@ -86,7 +86,7 @@ CREATE TABLE idempotency_records (
     idempotency_key VARCHAR(128) NOT NULL,
     response_json TEXT NOT NULL,
     expires_at TIMESTAMP(6) NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_idempotency_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT uk_idempotency_key UNIQUE (user_id, scope, idempotency_key)
 );

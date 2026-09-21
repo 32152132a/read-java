@@ -16,7 +16,7 @@ CREATE TABLE word_libraries (
     name VARCHAR(80) NOT NULL,
     description VARCHAR(300) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_word_library_owner FOREIGN KEY (owner_user_id) REFERENCES users (id)
 );
 
@@ -33,7 +33,7 @@ CREATE TABLE word_library_items (
 CREATE TABLE user_word_libraries (
     user_id VARCHAR(64) NOT NULL,
     library_id VARCHAR(64) NOT NULL,
-    added_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    added_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     last_position INT NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, library_id),
     CONSTRAINT fk_user_library_user FOREIGN KEY (user_id) REFERENCES users (id),
@@ -46,7 +46,7 @@ CREATE TABLE user_word_progress (
     word_id VARCHAR(64) NOT NULL,
     status VARCHAR(20) NOT NULL,
     attempts INT NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (user_id, library_id, word_id),
     CONSTRAINT fk_word_progress_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_word_progress_library FOREIGN KEY (library_id) REFERENCES word_libraries (id),

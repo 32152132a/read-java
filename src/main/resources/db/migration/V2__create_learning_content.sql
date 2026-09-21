@@ -18,8 +18,8 @@ CREATE TABLE learning_sessions (
     template_code VARCHAR(40) NOT NULL,
     review_mode BOOLEAN NOT NULL,
     current_unit_index INT NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_session_run_node FOREIGN KEY (run_node_id) REFERENCES learning_flow_run_nodes (id)
 );
@@ -62,7 +62,7 @@ CREATE TABLE quiz_submissions (
     session_id VARCHAR(64) NOT NULL,
     selected_option_id VARCHAR(64) NOT NULL,
     correct BOOLEAN NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_quiz_submission_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_quiz_submission_question FOREIGN KEY (question_id) REFERENCES quiz_questions (id),
     CONSTRAINT fk_quiz_submission_session FOREIGN KEY (session_id) REFERENCES learning_sessions (id)

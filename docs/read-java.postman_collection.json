@@ -1,0 +1,693 @@
+{
+  "info": {
+    "_postman_id": "7c7b6c8d-6cf8-4d3b-a234-readjava0001",
+    "name": "read-java API",
+    "description": "英语阅读项目 Spring Boot 后端接口集合。导入后先执行「认证 / 本地开发登录」，脚本会自动写入 accessToken 和 refreshToken。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "flowNodeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unitId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "libraryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "phonemeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "questionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "selectedOptionId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "认证",
+      "item": [
+        {
+          "name": "本地开发登录",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.data) {",
+                  "  pm.collectionVariables.set('accessToken', body.data.accessToken || '');",
+                  "  pm.collectionVariables.set('refreshToken', body.data.refreshToken || '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nickname\": \"永庆\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/dev/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "dev",
+                "login"
+              ]
+            },
+            "description": "本地 local profile 可用。返回统一响应，data 内包含 accessToken、refreshToken、tokenType、expiresInSeconds、user、newUser。"
+          }
+        },
+        {
+          "name": "微信登录",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"test-wechat-code\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/wechat/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "wechat",
+                "login"
+              ]
+            },
+            "description": "local profile 使用 Fake Gateway，任意非空 code 可联调。"
+          }
+        },
+        {
+          "name": "刷新访问令牌",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.data) {",
+                  "  pm.collectionVariables.set('accessToken', body.data.accessToken || '');",
+                  "  pm.collectionVariables.set('refreshToken', body.data.refreshToken || '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "退出登录",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "用户",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "当前用户资料",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/users/me"
+          }
+        },
+        {
+          "name": "当前用户统计",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/users/me/stats"
+          }
+        },
+        {
+          "name": "更新发音偏好",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accentPreference\": \"US\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/me/preferences",
+            "description": "当前仅支持 US。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "首页",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "首页聚合数据",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/home"
+          }
+        }
+      ]
+    },
+    {
+      "name": "学习流程",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "功能模板列表",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/learning-flow/templates"
+          }
+        },
+        {
+          "name": "当前学习流程",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const node = body && body.data && body.data.nodes && body.data.nodes[body.data.currentNodeIndex];",
+                  "if (node) { pm.collectionVariables.set('flowNodeId', node.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/learning-flow"
+          }
+        },
+        {
+          "name": "保存学习流程",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1,\n  \"nodes\": [\n    {\n      \"clientNodeId\": \"local-1\",\n      \"templateCode\": \"phoneme\"\n    },\n    {\n      \"clientNodeId\": \"local-2\",\n      \"templateCode\": \"phoneme-compare\"\n    },\n    {\n      \"clientNodeId\": \"local-3\",\n      \"templateCode\": \"phoneme-quiz\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/learning-flow",
+            "description": "version 必须等于当前流程 version，否则返回 FLOW_VERSION_CONFLICT。"
+          }
+        },
+        {
+          "name": "完成当前流程节点",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "complete-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flowNodeId\": \"{{flowNodeId}}\",\n  \"lastUnitId\": \"{{unitId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/learning-flow/current/complete",
+            "description": "必须传 Idempotency-Key。flowNodeId 可先执行「当前学习流程」自动写入。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "学习内容",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "获取学习会话",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.data) {",
+                  "  pm.collectionVariables.set('sessionId', body.data.sessionId || '');",
+                  "  const firstUnit = body.data.units && body.data.units[0];",
+                  "  if (firstUnit) { pm.collectionVariables.set('unitId', firstUnit.id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/learning-stages/phoneme/session?flowNodeId={{flowNodeId}}&review=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "learning-stages",
+                "phoneme",
+                "session"
+              ],
+              "query": [
+                {
+                  "key": "flowNodeId",
+                  "value": "{{flowNodeId}}"
+                },
+                {
+                  "key": "review",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "templateCode 示例：phoneme、phoneme-compare、phoneme-quiz、syllable、ipa-decoding、word-decoding、evaluation。"
+          }
+        },
+        {
+          "name": "更新学习位置",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unitId\": \"{{unitId}}\",\n  \"unitIndex\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/learning-stages/sessions/{{sessionId}}/position"
+          }
+        }
+      ]
+    },
+    {
+      "name": "音标",
+      "item": [
+        {
+          "name": "音标列表",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/phonemes?group=vowel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "phonemes"
+              ],
+              "query": [
+                {
+                  "key": "group",
+                  "value": "vowel",
+                  "description": "可选。为空时返回全部分组。"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "音标详情",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/phonemes/{{phonemeId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "答题",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "提交题目答案",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selectedOptionId\": \"{{selectedOptionId}}\",\n  \"sessionId\": \"{{sessionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/quiz-questions/{{questionId}}/answers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "词库",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "我的词库",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/word-libraries/mine"
+          }
+        },
+        {
+          "name": "可添加词库",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/word-libraries/available"
+          }
+        },
+        {
+          "name": "添加我的词库",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"libraryIds\": [\n    \"{{libraryId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/word-libraries/mine"
+          }
+        },
+        {
+          "name": "移除我的词库",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/word-libraries/mine/{{libraryId}}"
+          }
+        },
+        {
+          "name": "词库详情",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/word-libraries/{{libraryId}}"
+          }
+        },
+        {
+          "name": "词库单词分页",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/word-libraries/{{libraryId}}/words?cursor=&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "word-libraries",
+                "{{libraryId}}",
+                "words"
+              ],
+              "query": [
+                {
+                  "key": "cursor",
+                  "value": ""
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "1 到 100。"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "系统",
+      "item": [
+        {
+          "name": "业务健康检查",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/health"
+          }
+        },
+        {
+          "name": "Actuator 健康检查",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/actuator/health"
+          }
+        },
+        {
+          "name": "OpenAPI JSON",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v3/api-docs"
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/swagger-ui/index.html"
+          }
+        }
+      ]
+    }
+  ]
+}
