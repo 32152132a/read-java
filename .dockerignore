@@ -1,0 +1,8 @@
+# Only send build inputs to Docker, never local databases or credentials.
+**
+!pom.xml
+!src/
+!src/**
+**/.env*
+**/*.pem
+**/*.key

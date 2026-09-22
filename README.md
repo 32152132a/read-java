@@ -40,6 +40,7 @@
 
 ```text
 DB_URL=jdbc:mysql://localhost:3306/read_english?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+SPRING_PROFILES_ACTIVE=mysql
 DB_USERNAME=read_english
 DB_PASSWORD=你的数据库密码
 ```
@@ -47,6 +48,31 @@ DB_PASSWORD=你的数据库密码
 Flyway 会自动创建用户、学习流程、课程内容、题目、音标、单词和词库相关表。生产数据库账号需要具备执行迁移的建表权限。
 
 非本地环境必须通过 `JWT_ACCESS_SECRET` 提供至少 32 字节的随机密钥，且不会开放临时登录接口。
+
+默认 `local` profile 会使用 H2；连接 MySQL 必须显式切换到 `mysql`（本地联调）或 `prod`（线上）。现有 `.local/mysql.env` 和 `.local/run-with-mysql.ps1` 继续用于 SSH 隧道联调：数据库地址为 `127.0.0.1:3307`，先运行 `../frp/start_all.bat` 建立隧道。端口由启动进程的 `SERVER_PORT` 决定，前端 API 地址应与其一致。
+
+## Docker 生产部署
+
+`Dockerfile` 使用 Java 21 构建并运行测试、格式检查；同一个镜像在启动时读取环境变量，不把密码写进 JAR 或镜像。默认启用 `prod`，关闭开发登录和模拟微信登录；真实微信登录尚未实现。
+
+生产私有配置统一放在 `deploy-qyq/.env`，该目录是服务器部署目录的本地备份，可手动同步。无需在本仓库再保存一份生产密码，也无需提交前端或部署 `read-english`。本地联调配置保留在被 Git 忽略的 `.local/mysql.env`。
+
+| 容器变量 | deploy-qyq/.env 中的变量 |
+| --- | --- |
+| `DB_URL` | `READ_JAVA_DB_URL` |
+| `DB_USERNAME` | `READ_JAVA_DB_USERNAME` |
+| `DB_PASSWORD` | `READ_JAVA_DB_PASSWORD` |
+| `JWT_ACCESS_SECRET` | `READ_JAVA_JWT_ACCESS_SECRET` |
+
+生产 Compose 位于 `../deploy-qyq/docker-compose.read-java.yml`：Linux 主机网络连接服务器 `127.0.0.1:3306` 的 MySQL，HTTP 只监听 `127.0.0.1:18080`。数据库和账号须事先存在；启动时 Flyway 自动执行版本化迁移，失败则健康检查不通过。不要手动重复执行迁移 SQL。
+
+提交并推送两个仓库的部署相关变更后，从 `deploy-qyq` 运行（本次修改不会自动提交或上线）：
+
+```powershell
+.\windows\deploy-remote-rebuild.cmd
+```
+
+该入口沿用现有流程，将本地 `deploy-qyq/.env` 同步到服务器后部署原有服务和 Java。详细前置条件、首次部署和 Nginx 生效步骤见 `../deploy-qyq/READ_JAVA_DEPLOYMENT.md`。健康检查地址为服务器上的 `http://127.0.0.1:18080/actuator/health`。
 
 测试会在随机端口启动应用，实际请求健康检查接口并验证结果。命令行启动后按 Ctrl+C 停止服务。
 
