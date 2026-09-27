@@ -49,7 +49,8 @@ public class HomeService {
     UserProfile user = userService.getProfile(userId);
     CurrentFlow flow = learningFlowService.getCurrentFlow(userId);
     boolean completed = flow.currentPosition() >= flow.nodes().size();
-    TodayTask todayTask = completed ? null : toTodayTask(flow.nodes().get(flow.currentPosition()));
+    TodayTask todayTask =
+        completed ? null : toTodayTask(userId, flow.nodes().get(flow.currentPosition()));
     return new HomeResponse(
         new HomeUser(user.nickname()),
         greeting(user.nickname()),
@@ -62,7 +63,7 @@ public class HomeService {
         completed);
   }
 
-  private TodayTask toTodayTask(FlowNodeResponse node) {
+  private TodayTask toTodayTask(String userId, FlowNodeResponse node) {
     int total = learningStageService.countUnits(node.templateCode());
     return new TodayTask(
         node.id(),
@@ -71,7 +72,12 @@ public class HomeService {
         TASK_DESCRIPTIONS.getOrDefault(node.templateCode(), "继续今天的发音学习"),
         Math.max(3, total * 3),
         node.route(),
-        total == 0 ? 0 : 1,
+        total == 0
+            ? 0
+            : Math.min(
+                total,
+                learningStageService.getCurrentUnitIndex(userId, node.id(), node.templateCode())
+                    + 1),
         total);
   }
 

@@ -113,6 +113,15 @@ public class LearningStageService {
     return unitRepository.findByTemplateCodeAndEnabledTrueOrderBySortOrderAsc(templateCode).size();
   }
 
+  @Transactional(readOnly = true)
+  public int getCurrentUnitIndex(String userId, String flowNodeId, String templateCode) {
+    return sessionRepository
+        .findFirstByUserIdAndFlowNodeIdAndTemplateCodeAndReviewModeOrderByIdDesc(
+            userId, flowNodeId, templateCode, false)
+        .map(LearningSessionEntity::getCurrentUnitIndex)
+        .orElse(0);
+  }
+
   private LearningSessionResponse toResponse(
       LearningSessionEntity session, String flowNodeId, List<LearningUnitEntity> units) {
     List<LearningUnitResponse> unitResponses =

@@ -2,8 +2,10 @@ package com.readenglish.user;
 
 import com.readenglish.auth.UserProfile;
 import com.readenglish.common.api.ApiException;
-import com.readenglish.learningflow.LearningFlowService;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,11 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
   private final UserRepository userRepository;
-  private final LearningFlowService learningFlowService;
 
-  public UserService(UserRepository userRepository, LearningFlowService learningFlowService) {
+  public UserService(UserRepository userRepository) {
     this.userRepository = userRepository;
-    this.learningFlowService = learningFlowService;
   }
 
   @Transactional
@@ -58,9 +58,26 @@ public class UserService {
   @Transactional(readOnly = true)
   public UserStats getStats(String userId) {
     findRequired(userId);
-    var flow = learningFlowService.getCurrentFlow(userId);
-    int completed = (int) flow.nodes().stream().filter(node -> node.reviewable()).count();
-    return new UserStats(completed, flow.nodes().size(), 0, completed, 0);
+    var completionTimes = userRepository.findStageCompletionTimes(userId);
+    var zone = ZoneId.of("Asia/Shanghai");
+    var learningDates =
+        completionTimes.stream()
+            .map(time -> time.atZone(zone).toLocalDate())
+            .collect(Collectors.toSet());
+    LocalDate date = LocalDate.now(zone);
+    if (!learningDates.contains(date)) date = date.minusDays(1);
+    int streak = 0;
+    while (learningDates.contains(date)) {
+      streak++;
+      date = date.minusDays(1);
+    }
+    // 按已完成阶段中的不同课程单元计数，编辑流程和重复练习不会清空或重复累计。
+    return new UserStats(
+        Math.toIntExact(userRepository.countLearnedUnits(userId)),
+        Math.toIntExact(userRepository.countTotalUnits()),
+        streak,
+        completionTimes.size(),
+        0);
   }
 
   private UserEntity findRequired(String userId) {

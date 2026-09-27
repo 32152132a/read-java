@@ -49,7 +49,20 @@ Flyway 会自动创建用户、学习流程、课程内容、题目、音标、�
 
 非本地环境必须通过 `JWT_ACCESS_SECRET` 提供至少 32 字节的随机密钥，且不会开放临时登录接口。
 
-默认 `local` profile 会使用 H2；连接 MySQL 必须显式切换到 `mysql`（本地联调）或 `prod`（线上）。现有 `.local/mysql.env` 和 `.local/run-with-mysql.ps1` 继续用于 SSH 隧道联调：数据库地址为 `127.0.0.1:3307`，先运行 `../frp/start_all.bat` 建立隧道。端口由启动进程的 `SERVER_PORT` 决定，前端 API 地址应与其一致。
+默认 `local` profile 会使用 H2；连接 MySQL 必须显式切换到 `mysql`（本地联调）或 `prod`（线上）。SSH 隧道联调的私有配置保存在 `.local/mysql.env`，数据库地址为 `127.0.0.1:3307`。先手动建立隧道，然后在本仓库运行：
+
+```powershell
+# 仅检查 JDK、MySQL 隧道与 HTTP 端口，不启动服务
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -CheckOnly
+# 启动本地 MySQL 后端，默认 8080
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
+# 另一个终端启动前端；使用 HBuilderX 自带 Node
+powershell -NoProfile -ExecutionPolicy Bypass -File ..\read-english\client\scripts\web.ps1 -ApiBaseUrl http://127.0.0.1:8080/api/v1
+```
+
+后端脚本使用 JDK 21 和 Maven Wrapper，不依赖 Node。它检查 MySQL 握手，明确指定本地 `mysql` profile、`127.0.0.1` 和 HTTP 端口，仅设置当前进程环境，不修改系统配置。端口冲突时可传 `-Port 18080`，同时把前端 `-ApiBaseUrl` 改为 `http://127.0.0.1:18080/api/v1`。
+
+`../frp/start_all.bat` 会结束所有 Node 进程并启动多个项目，其 Java 端口固定为 18080。该脚本的前端入口已改为调用 `web.ps1` 并连接 18080，修复旧 `set VAR=value && ...` 命令把尾随空格写进 `UNI_INPUT_DIR`、导致找不到 `client /manifest.json` 的问题。只启动当前应用时可使用上面的两个独立入口。遇到 `Communications link failure` / `Connection refused` 时先检查 3307 隧道及远端 MySQL，不要据此更换 Java 或 Node 版本。
 
 ## Docker 生产部署
 
@@ -74,10 +87,16 @@ Flyway 会自动创建用户、学习流程、课程内容、题目、音标、�
 
 该入口沿用现有流程，将本地 `deploy-qyq/.env` 同步到服务器后部署原有服务和 Java。详细前置条件、首次部署和 Nginx 生效步骤见 `../deploy-qyq/READ_JAVA_DEPLOYMENT.md`。健康检查地址为服务器上的 `http://127.0.0.1:18080/actuator/health`。
 
+如果提示 `deploy-qyq or read-java has uncommitted changes`，分别执行两个仓库的 `git status --short` 检查。该入口要求工作区干净，并通过远端 Git 拉取已经推送的代码；本地未提交的联调改动会触发保护，与 Java / Node 版本无关。本地启动无需提交，继续使用 `scripts/start-local.ps1`。生产部署须在审查、确认提交并推送之后再执行，不应删除此检查或自动提交联调改动。
+
 测试会在随机端口启动应用，实际请求健康检查接口并验证结果。命令行启动后按 Ctrl+C 停止服务。
 
 ## 当前接口范围
 
 第一阶段接口已经包含登录与令牌、用户资料与统计、首页聚合、学习流程配置和幂等推进、统一课程 session、答题、音标总览，以及词库查看、添加、删除和分页单词。用户、流程、进度、答题和词库关系都写入数据库。
+
+首页 `todayTask.current` 从正式学习 session 的已保存位置读取，回顾 session 不影响该位置。个人统计跨历史流程计算：`completedStages` 累计已完成的阶段实例；`learnedUnits` 对已完成阶段中的当前启用课程单元去重；`totalUnits` 为当前启用课程单元总数；`streakDays` 以北京时间的阶段完成日期计算，今天尚未完成时可从昨天续算。阶段内浏览但尚未完成阶段不计为已学，重复练习不重复增加已学单元；评测未实现期间 `evaluationCount` 为 0。修改流程不会清空这些历史统计。
+
+联调回归测试 `IntegrationRegressionTests` 覆盖本地 CORS、流程修改后的历史统计、重复学习去重和首页断点恢复，不需要连接远程 MySQL。运行 `.\mvnw.cmd verify` 同时完成测试、打包和格式检查。
 
 AI 定制词库任务、录音上传、腾讯云口语评测、对象存储和大模型建议属于下一阶段，需要先确定供应商账号和数据授权。后续数据库密码及第三方密钥不要提交到仓库。
