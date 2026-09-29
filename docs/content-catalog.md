@@ -40,7 +40,7 @@
 | questions | CHOICE 或 LISTENING；每题 `{id, type, prompt, options, correctOptionId, explanation}`；听辨题另需有效 audioUrl |
 | WORD 专属 | word、meaning、tip、syllables、parts、commonTips、specialTips |
 | syllables | `{text, ipa, stress, emphasized}`；stress 为 0/1/2，非空数组有且仅有一个主重音 |
-| parts | `{letters, segments, tip}`；letters 拼接须等于单词；segments 使用音标片段结构 |
+| parts | `{letters, segments, tip}`；letters 拼接须等于单词；segments 使用音标片段结构，静音字母允许空数组 |
 | PHONEME 专属 | group、category、description、mouth、pronunciationSteps、exampleWords、memoryTip |
 | mouth | `{type, imageUrl?}`；type 支持 open/closed/relaxed/smile，自定义图片加载失败时回退内置示意图 |
 
@@ -77,15 +77,15 @@ Web 单词发音统一经 `pronunciation.uts`：优先美式浏览器声线，�
 ```dotenv
 DEEPSEEK_API_KEY=你的私有密钥
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MODEL=deepseek-flash
 CONTENT_ADMIN_USER_IDS=需要授予公共内容编辑权的用户ID
 ```
 
 管理员可配置多个 ID，用逗号分隔。默认没有管理员；不要为了调试开放给所有用户。当前用户 ID 可从 capabilities 接口读取。模型名称可按账号可用模型调整。
 
-现有 `scripts/start-local.ps1` 会加载 `.local/mysql.env`；加入这些变量后重启后端即可。缺少 DeepSeek 密钥时生成入口显示未配置，已有内容仍可维护和学习。
+现有 `scripts/start-local.ps1` 会加载 `.local/mysql.env`；加入这些变量后重启后端即可。缺少 DeepSeek 密钥时生成入口显示未配置，已有内容仍可维护和学习。结构化生成显式关闭模型思考模式，减少等待和额外消耗。
 
-V4 还将 `phonemes.detail_json` 扩展为 LONGTEXT，并新增内容表。迁移由 Flyway 执行；本轮只在隔离 H2 上执行，未对真实 MySQL 或远程环境执行。正式启用前需验证 MySQL 迁移并配置私有凭据。
+V4 还将 `phonemes.detail_json` 扩展为 LONGTEXT，并新增内容表。迁移由 Flyway 执行；真实 MySQL 已确认处于 V4，后续环境仍须按部署流程单独验证迁移目标和私有凭据。
 
 ## 验证与当前边界
 
@@ -93,6 +93,8 @@ V4 还将 `phonemes.detail_json` 扩展为 LONGTEXT，并新增内容表。迁�
 - 前端公共请求层和朗读：24 项通过；ESLint 通过；H5 构建通过，保留项目原有的 7 条模板索引类型警告。
 - 独立浏览器四项验收通过：批量生成草稿、人工编辑校验与发布、添加词库并答题更新进度、管理员音标维护；未捕获运行时异常。后端使用 18080 和独立内存 H2，AI 使用本地非流式固定样本服务。
 - 提交前复查修复了历史任务状态更新与学习卡片宽度，并通过浏览器状态和实际几何尺寸断言。
-- 真实 DeepSeek 账号、MySQL、微信小程序及真实音频资源尚未验证；本地固定样本不能代表 AI 教学内容准确率。
+- 真实 MySQL 8.0.45 已确认位于 Flyway V4；真实 DeepSeek `deepseek-flash` 已完成 7 个单词的草稿生成抽样。最终静音字母样本 `knight` 一次生成成功并以空 segments 表达静音 `k`。生成格式可以通过校验，但拆读和音标仍需人工审核，不能直接批量发布。
+- 真实联调发现并修复了 IPA 外层斜杠导致片段拼接失败、静音字母无法用空发音片段表达、默认思考模式增加等待，以及任务错误缺少诊断日志的问题。
+- 微信小程序及真实音频资源尚未验证；本地固定样本和少量真实抽样都不能代表批量内容准确率。
 - 音标资源网站尚待提供；未抓取资源、未接有道或 COS 上传、未实现自动纠错模型。
 - 任务执行采用单实例轻量调度。暂无管理分页、取消任务、批量发布或可视化拖拽编辑；当前上限和人工发布适合首批资源整理。

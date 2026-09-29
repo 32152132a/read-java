@@ -33,7 +33,7 @@ V4 增加六张表：`content_entries`、`content_revisions`、`content_jobs`、
 
 私有环境变量：`DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`CONTENT_ADMIN_USER_IDS`。可放在已有 `.local/mysql.env`，由本地启动脚本加载。不得输出真实值或提交 Git。
 
-**真实 MySQL 尚未执行 V4；真实 DeepSeek 账号尚未验证。** 现有验证使用隔离 H2 和本机 AI 固定样本，不等同生产集成验收。
+真实 MySQL 8.0.45 已确认处于 V4，真实 DeepSeek `deepseek-flash` 已完成 7 个词的小批量草稿抽样；最终 `knight` 一次成功并正确用空 segments 表达静音 `k`。适配器显式关闭思考模式，统一 IPA 外层斜杠，允许静音字母使用空发音片段，并记录不含密钥和完整响应的失败原因。少量抽样仍不代表批量教学准确率，生成内容必须人工审核后发布。
 
 ## 运行与检查
 
@@ -59,7 +59,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/web.ps1 -Build
 
 ## 建议后续顺序
 
-1. **真实集成闭环**：确认迁移目标与授权，验证 MySQL V4；在私有环境配置 DeepSeek，先用 5–10 个词验证生成、审核、发布、学习、失败重试和成本。不要一开始就批量导入大量词。
+1. **真实集成闭环**：MySQL V4 和 DeepSeek 草稿生成已验证；下一步选择一条审核合格的草稿，完成人工修订、发布、学习和答题闭环，并记录一次实际用量。不要一开始就批量导入大量词。
 2. **编辑体验**：与用户确认后，把音标片段、拆分、重音和选择题改成可视化表单，保留 JSON 作为高级入口。用户当前尚未明确批准这一轮新 UI 开发。
 3. **内容与资源**：用户提供官方音标网站及购买资源，核对授权与文件结构，确定首批内容规范。不能把 AI 生成结果直接当作权威发音数据。
 4. **COS + 有道**：复用 ollama-node 的接入经验，由后端生成/上传音频，记录对象标识和 URL；统一播放入口切换策略，避免每个页面各接一遍。
@@ -67,4 +67,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/web.ps1 -Build
 
 ## 下一窗口可直接发送
 
-> 继续 read-english/read-java。先读 D:\works\trae\read-java\docs\next-session-handoff.md 和两个仓库的 Git 状态，确认最新提交。第一版配置化内容、草稿发布和词库学习已经完成；接下来先梳理真实 MySQL V4 + DeepSeek 小批量联调需要的私有配置和迁移步骤。保留已有改动，未经授权不要 push、部署或直接修改远程数据库。
+> 继续 read-english/read-java。先读 D:\works\trae\read-java\docs\next-session-handoff.md 和两个仓库的 Git 状态，确认最新提交。真实 MySQL V4 与 DeepSeek 草稿生成已经验证；接下来选择一条草稿完成人工修订、发布、学习和答题闭环。保留已有改动，未经授权不要 push、部署或直接修改远程数据库。

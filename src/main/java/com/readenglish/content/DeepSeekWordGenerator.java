@@ -8,6 +8,8 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -16,6 +18,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 @Component
 public class DeepSeekWordGenerator implements WordGenerator {
+  private static final Logger log = LoggerFactory.getLogger(DeepSeekWordGenerator.class);
   private final String key;
   private final String endpoint;
   private final String model;
@@ -27,7 +30,7 @@ public class DeepSeekWordGenerator implements WordGenerator {
   public DeepSeekWordGenerator(
       @Value("${app.content.deepseek.api-key:}") String key,
       @Value("${app.content.deepseek.base-url:https://api.deepseek.com}") String endpoint,
-      @Value("${app.content.deepseek.model:deepseek-chat}") String model,
+      @Value("${app.content.deepseek.model:deepseek-flash}") String model,
       ObjectMapper mapper,
       ContentConfig configs) {
     this.key = key;
@@ -51,11 +54,12 @@ public class DeepSeekWordGenerator implements WordGenerator {
         字段：word（必须与输入一致）、ipa（完整美式 IPA）、meaning（中文释义）、tip（中文提示）、
         ipaSegments（拼接为 ipa 的数组，每项 text,tone,bold；tone 只能 normal/primary/muted/stress/success，bold 为布尔值）、
         syllables（音节数组，每项 text,ipa,stress:0/1/2,emphasized:boolean；有且仅有一个主重音）、
-        parts（字母拆读数组，每项 letters,segments,tip；letters 拼接等于 word；segments 格式同 ipaSegments；不能把字母组合直接等同音节）、
+        parts（字母拆读数组，每项 letters,segments,tip；letters 拼接等于 word；segments 项格式同 ipaSegments；静音字母的 segments=[]；不能把字母组合直接等同音节）、
         commonTips/specialTips（中文字符串数组）、audio:{url:"",objectKey:"",provider:""}、
         questions（1-2道 CHOICE 选择题，每项 id,type,prompt,options:[{id,label}],correctOptionId,explanation）。
         题目选项2-4个、不重复、仅一个正确答案。不得编造音频网址或听辨题。不要生成 HTML、Markdown、脚本。
-        注意静音字母、重音、常见读法；不确定内容明确在 specialTips 说明待人工核对。不确定的复杂拆分可留空数组。
+        ipa 不要包含外层斜杠；ipaSegments 必须包含重音符号等全部字符，按顺序直接拼接后与 ipa 完全一致。
+        parts.segments.text 必须是 IPA，不能复制英文字母拼写；注意静音字母、重音、常见读法。无法可靠映射的复杂拆分将整个 parts 留空，并在 specialTips 说明待人工核对。
         """;
     try {
       String body =
@@ -67,6 +71,8 @@ public class DeepSeekWordGenerator implements WordGenerator {
                   false,
                   "max_tokens",
                   4000,
+                  "thinking",
+                  Map.of("type", "disabled"),
                   "response_format",
                   Map.of("type", "json_object"),
                   "messages",
@@ -89,6 +95,7 @@ public class DeepSeekWordGenerator implements WordGenerator {
       ObjectNode result = configs.read(choice.path("message").path("content").asText());
       ContentConfig.require(result.path("word").asText().equalsIgnoreCase(word), "模型返回的单词不匹配");
       result.put("word", word);
+      normalizeIpa(result);
       configs.validate(result, "WORD");
       // 音频资源由可信导入流程维护，不采纳模型生成的地址。
       result.putObject("audio").put("url", "").put("objectKey", "").put("provider", "");
@@ -97,8 +104,30 @@ public class DeepSeekWordGenerator implements WordGenerator {
       Thread.currentThread().interrupt();
       throw unavailable();
     } catch (Exception ex) {
+      log.warn("DeepSeek generation failed for word '{}': {}", word, diagnostic(ex));
       throw unavailable();
     }
+  }
+
+  private void normalizeIpa(ObjectNode result) {
+    String ipa = result.path("ipa").asText();
+    if (ipa.length() >= 2 && ipa.startsWith("/") && ipa.endsWith("/"))
+      result.put("ipa", ipa.substring(1, ipa.length() - 1));
+    var segments = result.path("ipaSegments");
+    if (!segments.isArray() || segments.isEmpty()) return;
+    if (!(segments.get(0) instanceof ObjectNode first)
+        || !(segments.get(segments.size() - 1) instanceof ObjectNode last)) return;
+    String firstText = first.path("text").asText();
+    if (firstText.startsWith("/")) first.put("text", firstText.substring(1));
+    String lastText = last.path("text").asText();
+    if (lastText.endsWith("/")) last.put("text", lastText.substring(0, lastText.length() - 1));
+  }
+
+  private String diagnostic(Exception exception) {
+    String message = exception.getMessage();
+    if (message == null || message.isBlank()) return exception.getClass().getSimpleName();
+    String singleLine = message.replaceAll("[\\r\\n]+", " ");
+    return singleLine.substring(0, Math.min(singleLine.length(), 240));
   }
 
   private ApiException unavailable() {

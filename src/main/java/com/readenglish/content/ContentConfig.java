@@ -82,7 +82,7 @@ public class ContentConfig {
       for (JsonNode p : c.path("parts")) {
         text(p, "letters", 120);
         letters.append(p.path("letters").asText());
-        segments(p.path("segments"));
+        partSegments(p.path("segments"));
         optionalText(p, "tip", 500);
       }
       require(
@@ -166,6 +166,15 @@ public class ContentConfig {
 
   private static void segments(JsonNode items) {
     require(items.isArray() && !items.isEmpty() && items.size() <= 60, "音标片段必须是非空数组");
+    validateSegments(items);
+  }
+
+  private static void partSegments(JsonNode items) {
+    require(items.isArray() && items.size() <= 60, "拆读音标片段必须是数组且不超过 60 项");
+    validateSegments(items);
+  }
+
+  private static void validateSegments(JsonNode items) {
     for (JsonNode s : items) {
       text(s, "text", 160);
       require(TONES.contains(s.path("tone").asText()), "强调类型无效");

@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Size;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -18,6 +20,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 @EnableScheduling
 public class ContentJobs {
+  private static final Logger log = LoggerFactory.getLogger(ContentJobs.class);
   private final JdbcTemplate db;
   private final ContentService contents;
   private final WordGenerator generator;
@@ -198,8 +201,8 @@ public class ContentJobs {
             position)
         != 1) return;
     db.update("UPDATE content_jobs SET status='PROCESSING' WHERE id=?", job);
+    String word = (String) row.get("word");
     try {
-      String word = (String) row.get("word");
       var existing =
           db.queryForList(
               "SELECT id FROM content_entries WHERE kind='WORD' AND scope_id=? AND LOWER(label)=?",
@@ -219,12 +222,20 @@ public class ContentJobs {
             contents.linkPublishedEntry(entry);
           });
     } catch (Exception ex) {
+      log.warn("Content generation job failed for word '{}': {}", word, diagnostic(ex));
       db.update(
           "UPDATE content_job_items SET status='FAILED',error_message='生成失败或数据不完整，请重试' WHERE job_id=? AND position=?",
           job,
           position);
     }
     refresh(job);
+  }
+
+  private String diagnostic(Exception exception) {
+    String message = exception.getMessage();
+    if (message == null || message.isBlank()) return exception.getClass().getSimpleName();
+    String singleLine = message.replaceAll("[\\r\\n]+", " ");
+    return singleLine.substring(0, Math.min(singleLine.length(), 240));
   }
 
   private void refresh(String id) {
