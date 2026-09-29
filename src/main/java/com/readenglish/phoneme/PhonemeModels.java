@@ -26,5 +26,6 @@ public final class PhonemeModels {
       JsonNode mouth,
       List<String> pronunciationSteps,
       List<ExampleWord> exampleWords,
-      String memoryTip) {}
+      String memoryTip,
+      JsonNode teachingConfig) {}
 }

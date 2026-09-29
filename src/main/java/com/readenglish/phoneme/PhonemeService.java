@@ -24,10 +24,15 @@ public class PhonemeService {
 
   private final PhonemeRepository phonemeRepository;
   private final ObjectMapper objectMapper;
+  private final com.readenglish.content.ContentService contents;
 
-  public PhonemeService(PhonemeRepository phonemeRepository, ObjectMapper objectMapper) {
+  public PhonemeService(
+      PhonemeRepository phonemeRepository,
+      ObjectMapper objectMapper,
+      com.readenglish.content.ContentService contents) {
     this.phonemeRepository = phonemeRepository;
     this.objectMapper = objectMapper;
+    this.contents = contents;
   }
 
   @Transactional(readOnly = true)
@@ -88,7 +93,8 @@ public class PhonemeService {
         detail.path("mouth"),
         steps,
         examples,
-        textOrNull(detail, "memoryTip"));
+        textOrNull(detail, "memoryTip"),
+        contents.publicPhoneme(id));
   }
 
   private JsonNode readDetail(String detailJson) {

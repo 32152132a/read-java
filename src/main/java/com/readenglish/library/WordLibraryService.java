@@ -27,6 +27,7 @@ public class WordLibraryService {
 
   private static final String BASE_LIBRARY_ID = "lib_base";
 
+  private final com.readenglish.content.ContentService contents;
   private final WordLibraryRepository libraryRepository;
   private final WordLibraryItemRepository itemRepository;
   private final WordRepository wordRepository;
@@ -38,7 +39,9 @@ public class WordLibraryService {
       WordLibraryItemRepository itemRepository,
       WordRepository wordRepository,
       UserWordLibraryRepository userLibraryRepository,
-      UserWordProgressRepository progressRepository) {
+      UserWordProgressRepository progressRepository,
+      com.readenglish.content.ContentService contents) {
+    this.contents = contents;
     this.libraryRepository = libraryRepository;
     this.itemRepository = itemRepository;
     this.wordRepository = wordRepository;
@@ -163,9 +166,19 @@ public class WordLibraryService {
             .findAllById(pageItems.stream().map(WordLibraryItemEntity::getWordId).toList())
             .stream()
             .collect(Collectors.toMap(WordEntity::getId, Function.identity()));
+    var configurations =
+        contents.publicWords(
+            userId, pageItems.stream().map(WordLibraryItemEntity::getWordId).toList());
     List<LibraryWord> items =
         pageItems.stream()
-            .map(item -> toWord(userId, libraryId, item, words.get(item.getWordId())))
+            .map(
+                item ->
+                    toWord(
+                        userId,
+                        libraryId,
+                        item,
+                        words.get(item.getWordId()),
+                        configurations.get(item.getWordId())))
             .toList();
     String nextCursor =
         hasMore ? encodeCursor(pageItems.get(pageItems.size() - 1).getSortOrder()) : null;
@@ -189,18 +202,23 @@ public class WordLibraryService {
   }
 
   private LibraryWord toWord(
-      String userId, String libraryId, WordLibraryItemEntity item, WordEntity word) {
+      String userId,
+      String libraryId,
+      WordLibraryItemEntity item,
+      WordEntity word,
+      tools.jackson.databind.JsonNode config) {
     boolean learned =
         progressRepository.existsByIdUserIdAndIdLibraryIdAndIdWordIdAndStatus(
             userId, libraryId, word.getId(), "COMPLETED");
     return new LibraryWord(
         word.getId(),
         word.getDisplayWord(),
-        word.getIpa(),
-        word.getMeaning(),
-        word.getAudioUrl(),
+        config.path("ipa").asText(),
+        config.path("meaning").asText(),
+        config.path("audio").path("url").asText(""),
         item.getSortOrder(),
-        learned);
+        learned,
+        config);
   }
 
   private WordLibraryEntity getAccessible(String userId, String libraryId) {

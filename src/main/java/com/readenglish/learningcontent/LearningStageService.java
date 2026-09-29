@@ -24,12 +24,15 @@ public class LearningStageService {
   private final LearningUnitRepository unitRepository;
   private final LearningSessionRepository sessionRepository;
   private final ObjectMapper objectMapper;
+  private final com.readenglish.content.ContentProjection projection;
 
   public LearningStageService(
       LearningFlowService learningFlowService,
       LearningUnitRepository unitRepository,
       LearningSessionRepository sessionRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      com.readenglish.content.ContentProjection projection) {
+    this.projection = projection;
     this.learningFlowService = learningFlowService;
     this.unitRepository = unitRepository;
     this.sessionRepository = sessionRepository;
@@ -77,6 +80,7 @@ public class LearningStageService {
                     sessionRepository.save(
                         new LearningSessionEntity(
                             newId(), userId, runNodeId, flowNodeId, templateCode, review)));
+    sessionRepository.flush();
     return toResponse(session, flowNodeId, units);
   }
 
@@ -134,13 +138,20 @@ public class LearningStageService {
                         unit.getContentType(),
                         readContent(unit.getContentJson())))
             .toList();
+    var snapshot =
+        projection.snapshot(
+            session.getId(), session.getUserId(), objectMapper.valueToTree(unitResponses));
+    unitResponses =
+        java.util.stream.StreamSupport.stream(snapshot.spliterator(), false)
+            .map(item -> objectMapper.treeToValue(item, LearningUnitResponse.class))
+            .toList();
     return new LearningSessionResponse(
         session.getId(),
         flowNodeId,
         session.getTemplateCode(),
         session.isReviewMode(),
         session.getCurrentUnitIndex(),
-        units.size(),
+        unitResponses.size(),
         unitResponses);
   }
 
