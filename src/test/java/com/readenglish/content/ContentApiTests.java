@@ -232,28 +232,51 @@ class ContentApiTests {
 
   @Test
   void oversizedOrNonStringAudioIsRejectedBeforePublishing() throws Exception {
-    String entry=contents.generated(user,word("recording"));
-    var config=word("recording");
-    config.withObject("audio").put("url","https://example.com/"+"a".repeat(500));
-    call(token,"PUT","/content/"+entry,mapper.createObjectNode().put("version",1).set("config",config),400);
+    String entry = contents.generated(user, word("recording"));
+    var config = word("recording");
+    config.withObject("audio").put("url", "https://example.com/" + "a".repeat(500));
+    call(
+        token,
+        "PUT",
+        "/content/" + entry,
+        mapper.createObjectNode().put("version", 1).set("config", config),
+        400);
     config.withObject("audio").putObject("url");
-    call(token,"PUT","/content/"+entry,mapper.createObjectNode().put("version",1).set("config",config),400);
+    call(
+        token,
+        "PUT",
+        "/content/" + entry,
+        mapper.createObjectNode().put("version", 1).set("config", config),
+        400);
     assertThat(contents.get(entry).version()).isEqualTo(1);
   }
 
   @Test
   void importingDifferentCaseReusesReviewedContentAndPublishedLibraryLink() {
-    String entry=contents.generated(user,word("capitalized"));
-    var edited=word("Capitalized");edited.put("meaning","人工校正释义");
-    contents.save(user,entry,new ContentService.SaveRequest(1,edited));
-    contents.publish(user,entry,2);
-    var job=jobs.create(user,UUID.randomUUID().toString(),new ContentJobs.Create("复用词库","capitalized"));
+    String entry = contents.generated(user, word("capitalized"));
+    var edited = word("Capitalized");
+    edited.put("meaning", "人工校正释义");
+    contents.save(user, entry, new ContentService.SaveRequest(1, edited));
+    contents.publish(user, entry, 2);
+    var job =
+        jobs.create(
+            user, UUID.randomUUID().toString(), new ContentJobs.Create("复用词库", "capitalized"));
     jobs.work();
-    assertThat(jobs.get(user,(String)job.get("id")).get("status")).isEqualTo("SUCCEEDED");
-    assertThat(db.queryForObject("SELECT entry_id FROM content_job_items WHERE job_id=?",String.class,job.get("id"))).isEqualTo(entry);
-    assertThat(db.queryForObject("SELECT COUNT(*) FROM word_library_items WHERE library_id=?",Integer.class,job.get("libraryId"))).isEqualTo(1);
+    assertThat(jobs.get(user, (String) job.get("id")).get("status")).isEqualTo("SUCCEEDED");
+    assertThat(
+            db.queryForObject(
+                "SELECT entry_id FROM content_job_items WHERE job_id=?",
+                String.class,
+                job.get("id")))
+        .isEqualTo(entry);
+    assertThat(
+            db.queryForObject(
+                "SELECT COUNT(*) FROM word_library_items WHERE library_id=?",
+                Integer.class,
+                job.get("libraryId")))
+        .isEqualTo(1);
     assertThat(contents.get(entry).version()).isEqualTo(2);
-    verify(generator,never()).generate(anyString());
+    verify(generator, never()).generate(anyString());
   }
 
   @Test

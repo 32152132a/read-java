@@ -36,7 +36,7 @@
 | --- | --- |
 | ipaSegments | `{text, tone, bold}` 数组；text 拼接须等于完整 IPA；tone 为 normal/primary/muted/stress/success |
 | icon | 可选，限定现有图标 book-open/volume-2/headphones/audio-waveform/circle-check |
-| audio | `{url, objectKey, provider}`；URL 为空或 HTTPS；预留 COS 和有道资源信息 |
+| audio | `{url, objectKey, provider}`；URL 为空或 HTTPS，最长 500 字符，与发布目标数据库字段一致；预留 COS 和有道资源信息 |
 | questions | CHOICE 或 LISTENING；每题 `{id, type, prompt, options, correctOptionId, explanation}`；听辨题另需有效 audioUrl |
 | WORD 专属 | word、meaning、tip、syllables、parts、commonTips、specialTips |
 | syllables | `{text, ipa, stress, emphasized}`；stress 为 0/1/2，非空数组有且仅有一个主重音 |
@@ -89,9 +89,10 @@ V4 还将 `phonemes.detail_json` 扩展为 LONGTEXT，并新增内容表。迁�
 
 ## 验证与当前边界
 
-- 后端最终 `mvnw verify`：20 项测试通过，包含原有 14 项回归、5 项内容流程及 1 项本地 HTTP 适配器测试；打包、Spotless 检查通过。
+- 后端复查后 `mvnw verify`：22 项测试通过，包含原有 14 项回归、7 项内容流程及 1 项本地 HTTP 适配器测试；打包、Spotless 检查通过。新增覆盖音频地址上限/类型和大小写变化后的人工内容复用。
 - 前端公共请求层和朗读：24 项通过；ESLint 通过；H5 构建通过，保留项目原有的 7 条模板索引类型警告。
 - 独立浏览器四项验收通过：批量生成草稿、人工编辑校验与发布、添加词库并答题更新进度、管理员音标维护；未捕获运行时异常。后端使用 18080 和独立内存 H2，AI 使用本地非流式固定样本服务。
+- 提交前复查修复了历史任务状态更新与学习卡片宽度，并通过浏览器状态和实际几何尺寸断言。
 - 真实 DeepSeek 账号、MySQL、微信小程序及真实音频资源尚未验证；本地固定样本不能代表 AI 教学内容准确率。
 - 音标资源网站尚待提供；未抓取资源、未接有道或 COS 上传、未实现自动纠错模型。
 - 任务执行采用单实例轻量调度。暂无管理分页、取消任务、批量发布或可视化拖拽编辑；当前上限和人工发布适合首批资源整理。
