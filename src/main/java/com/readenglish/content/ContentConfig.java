@@ -44,11 +44,7 @@ public class ContentConfig {
     result.putArray("questions");
     result.putArray("commonTips");
     result.putArray("specialTips");
-    result
-        .putObject("audio")
-        .put("url", audio == null ? "" : audio)
-        .put("objectKey", "")
-        .put("provider", "");
+    result.putObject("audio").put("url", audio == null ? "" : audio).put("objectKey", "");
     return result;
   }
 
@@ -110,13 +106,8 @@ public class ContentConfig {
         url(w.path("audioUrl").asText(""));
       }
     }
-    if (c.has("icon"))
-      require(
-          Set.of("book-open", "volume-2", "headphones", "audio-waveform", "circle-check")
-              .contains(c.path("icon").asText()),
-          "图标必须来自现有图标集合");
     require(c.path("audio").isObject(), "audio 配置不能为空");
-    // 发布时同时写入 words/phonemes 的 VARCHAR(500) 字段。
+    // 保存时同时写入 words/phonemes 的 VARCHAR(500) 字段。
     optionalText(c.path("audio"), "url", 500);
     url(c.path("audio").path("url").asText(""));
     optionalText(c.path("audio"), "usUrl", 500);
@@ -124,7 +115,6 @@ public class ContentConfig {
     optionalText(c.path("audio"), "gbUrl", 500);
     url(c.path("audio").path("gbUrl").asText(""));
     optionalText(c.path("audio"), "objectKey", 500);
-    optionalText(c.path("audio"), "provider", 80);
     array(c, "questions", 20);
     Set<String> ids = new HashSet<>();
     for (JsonNode q : c.path("questions")) {

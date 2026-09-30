@@ -70,7 +70,7 @@ class ContentApiTests {
   }
 
   @Test
-  void generationIsIdempotentAndReviewPublishStudyKeepsSnapshot() throws Exception {
+  void generationIsIdempotentAndContentChangesResetLibraryStudy() throws Exception {
     var input =
         mapper
             .createObjectNode()
@@ -93,27 +93,41 @@ class ContentApiTests {
     assertThat(task.path("status").asText()).isEqualTo("SUCCEEDED");
     String entry = task.path("items").get(0).path("entryId").asText();
     assertThat(entry).isNotBlank();
-    call(token, "POST", "/word-libraries/" + task.path("libraryId").asText() + "/study", null, 404);
+    String library = task.path("libraryId").asText();
+    assertThat(
+            db.queryForObject(
+                "SELECT COUNT(*) FROM word_library_items WHERE library_id=?",
+                Integer.class,
+                library))
+        .isEqualTo(2);
     var detail = call(token, "GET", "/content/" + entry, null, 200);
-    assertThat(detail.path("publishedVersion").isNull()).isTrue();
+    assertThat(detail.has("publishedVersion")).isFalse();
     call(
         token,
         "PUT",
         "/content/" + entry,
         mapper.createObjectNode().put("version", 0).set("config", detail.path("config")),
         409);
-    call(
-        token,
-        "POST",
-        "/content/" + entry + "/publish",
-        mapper.createObjectNode().put("version", 1),
-        200);
-    String library = task.path("libraryId").asText();
     var add = mapper.createObjectNode();
     add.putArray("libraryIds").add(library);
     call(token, "POST", "/word-libraries/mine", add, 200);
     var study = call(token, "POST", "/word-libraries/" + library + "/study", null, 200);
     assertThat(study.toString()).doesNotContain("correctOptionId", "explanation");
+    String oldSession = study.path("sessionId").asText();
+    String wordId = study.path("items").get(0).path("wordId").asText();
+    String oldBase = "/content-study/" + oldSession;
+    var oldAnswer =
+        call(
+            token,
+            "POST",
+            oldBase + "/answers",
+            mapper
+                .createObjectNode()
+                .put("questionId", wordId + ":q1")
+                .put("selectedOptionId", "a"),
+            200);
+    assertThat(oldAnswer.path("correct").asBoolean()).isTrue();
+    call(token, "POST", oldBase + "/words/" + wordId + "/complete", null, 200);
     var changed = (ObjectNode) detail.path("config").deepCopy();
     ((ObjectNode) changed.path("questions").get(0))
         .put("correctOptionId", "b")
@@ -124,16 +138,17 @@ class ContentApiTests {
         "/content/" + entry,
         mapper.createObjectNode().put("version", 1).set("config", changed),
         200);
-    call(
-        token,
-        "POST",
-        "/content/" + entry + "/publish",
-        mapper.createObjectNode().put("version", 2),
-        200);
-    String snapshot = study.path("sessionId").asText(),
-        wordId = study.path("items").get(0).path("wordId").asText();
-    String base = "/content-study/" + snapshot;
-    call(token, "POST", base + "/words/" + wordId + "/complete", null, 400);
+    assertThat(
+            db.queryForObject(
+                "SELECT COUNT(*) FROM user_word_progress WHERE user_id=? AND library_id=?",
+                Integer.class,
+                user,
+                library))
+        .isZero();
+    var restarted = call(token, "POST", "/word-libraries/" + library + "/study", null, 200);
+    String currentSession = restarted.path("sessionId").asText();
+    assertThat(currentSession).isEqualTo(library);
+    String base = "/content-study/" + currentSession;
     var answer =
         call(
             token,
@@ -142,10 +157,10 @@ class ContentApiTests {
             mapper
                 .createObjectNode()
                 .put("questionId", wordId + ":q1")
-                .put("selectedOptionId", "a"),
+                .put("selectedOptionId", "b"),
             200);
     assertThat(answer.path("correct").asBoolean()).isTrue();
-    assertThat(answer.path("explanation").asText()).isEqualTo("原版本解释");
+    assertThat(answer.path("explanation").asText()).isEqualTo("新版解释");
     call(token, "POST", base + "/words/" + wordId + "/complete", null, 200);
     call(token, "POST", base + "/words/" + wordId + "/complete", null, 200);
     assertThat(
@@ -189,14 +204,17 @@ class ContentApiTests {
     var detail = call(admin, "GET", "/content/" + publicId, null, 200);
     call(
         admin,
-        "POST",
-        "/content/" + publicId + "/validate",
-        mapper.createObjectNode().put("version", 0).set("config", detail.path("config")),
+        "PUT",
+        "/content/" + publicId,
+        mapper
+            .createObjectNode()
+            .put("version", detail.path("version").asInt())
+            .set("config", detail.path("config")),
         200);
   }
 
   @Test
-  void failureCanRetryWithoutReplacingHumanDraft() {
+  void failureCanRetryWithoutReplacingHumanContent() {
     when(generator.generate("failure"))
         .thenThrow(new IllegalStateException("provider unavailable"));
     var task =
@@ -231,7 +249,7 @@ class ContentApiTests {
   }
 
   @Test
-  void oversizedOrNonStringAudioIsRejectedBeforePublishing() throws Exception {
+  void oversizedOrNonStringAudioIsRejectedBeforeSaving() throws Exception {
     String entry = contents.generated(user, word("recording"));
     var config = word("recording");
     config.withObject("audio").put("url", "https://example.com/" + "a".repeat(500));
@@ -252,12 +270,11 @@ class ContentApiTests {
   }
 
   @Test
-  void importingDifferentCaseReusesReviewedContentAndPublishedLibraryLink() {
+  void importingDifferentCaseReusesReviewedContentAndLibraryLink() {
     String entry = contents.generated(user, word("capitalized"));
     var edited = word("Capitalized");
     edited.put("meaning", "人工校正释义");
     contents.save(user, entry, new ContentService.SaveRequest(1, edited));
-    contents.publish(user, entry, 2);
     var job =
         jobs.create(
             user, UUID.randomUUID().toString(), new ContentJobs.Create("复用词库", "capitalized"));
@@ -280,7 +297,7 @@ class ContentApiTests {
   }
 
   @Test
-  void phonemePublicationUpdatesNewLessonsButPreservesOpenedSession() throws Exception {
+  void phonemeSavingUpdatesNewLessonsButPreservesOpenedSession() throws Exception {
     String admin =
         tokens
             .issueFor(new UserProfile("content-admin", "管理员", null, "US"), "test", false)
@@ -295,21 +312,14 @@ class ContentApiTests {
     var config = (ObjectNode) detail.path("config").deepCopy();
     config.put("ipa", "/ɪˑ/");
     ((ObjectNode) config.path("ipaSegments").get(0)).put("text", "/ɪˑ/").put("bold", true);
-    var saved =
-        call(
-            admin,
-            "PUT",
-            "/content/" + entry,
-            mapper
-                .createObjectNode()
-                .put("version", detail.path("version").asInt())
-                .set("config", config),
-            200);
     call(
         admin,
-        "POST",
-        "/content/" + entry + "/publish",
-        mapper.createObjectNode().put("version", saved.path("version").asInt()),
+        "PUT",
+        "/content/" + entry,
+        mapper
+            .createObjectNode()
+            .put("version", detail.path("version").asInt())
+            .set("config", config),
         200);
     assertThat(call(token, "GET", sessionPath, null, 200).path("units"))
         .isEqualTo(original.path("units"));

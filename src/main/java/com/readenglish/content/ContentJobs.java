@@ -90,7 +90,7 @@ public class ContentJobs {
         "请等待已有任务完成");
     String id = ContentService.id("job"), library = ContentService.id("lib");
     db.update(
-        "INSERT INTO word_libraries(id,owner_user_id,type,name,description,status) VALUES(?,?,'AI_CUSTOM',?,'AI 生成后经审核发布的个人词库','PENDING')",
+        "INSERT INTO word_libraries(id,owner_user_id,type,name,description,status) VALUES(?,?,'AI_CUSTOM',?,'AI 生成的个人词库','PENDING')",
         library,
         user,
         input.name().trim());
@@ -219,7 +219,7 @@ public class ContentJobs {
                 entry,
                 job,
                 position);
-            contents.linkPublishedEntry(entry);
+            contents.linkCurrentEntry(entry);
           });
     } catch (Exception ex) {
       log.warn("Content generation job failed for word '{}': {}", word, diagnostic(ex));

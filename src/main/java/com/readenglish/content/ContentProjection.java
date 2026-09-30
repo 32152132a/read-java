@@ -28,7 +28,7 @@ public class ContentProjection {
         "SELECT id FROM learning_sessions WHERE id=? FOR UPDATE", String.class, session);
     List<String> old =
         db.queryForList(
-            "SELECT content_json FROM content_snapshots WHERE id=? AND user_id=?",
+            "SELECT content_json FROM learning_session_snapshots WHERE id=? AND user_id=?",
             String.class,
             session,
             user);
@@ -37,7 +37,7 @@ public class ContentProjection {
       ObjectNode content = (ObjectNode) unit.path("content");
       String word = content.path("wordId").asText();
       if (!word.isBlank()) {
-        ObjectNode c = contents.published(user, "WORD", word);
+        ObjectNode c = contents.current(user, "WORD", word);
         if (c != null) {
           content.set("teachingConfig", c);
           content
@@ -90,7 +90,7 @@ public class ContentProjection {
         }
     }
     db.update(
-        "INSERT INTO content_snapshots(id,user_id,content_json) VALUES(?,?,?)",
+        "INSERT INTO learning_session_snapshots(id,user_id,content_json) VALUES(?,?,?)",
         session,
         user,
         units.toString());

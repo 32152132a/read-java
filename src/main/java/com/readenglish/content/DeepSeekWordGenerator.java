@@ -55,7 +55,7 @@ public class DeepSeekWordGenerator implements WordGenerator {
         ipaSegments（拼接为 ipa 的数组，每项 text,tone,bold；tone 只能 normal/primary/muted/stress/success，bold 为布尔值）、
         syllables（音节数组，每项 text,ipa,stress:0/1/2,emphasized:boolean；有且仅有一个主重音）、
         parts（字母拆读数组，每项 letters,segments,tip；letters 拼接等于 word；segments 项格式同 ipaSegments；静音字母的 segments=[]；不能把字母组合直接等同音节）、
-        commonTips/specialTips（中文字符串数组）、audio:{url:"",objectKey:"",provider:""}、
+        commonTips/specialTips（中文字符串数组）、audio:{url:""}、
         questions（1-2道 CHOICE 选择题，每项 id,type,prompt,options:[{id,label}],correctOptionId,explanation）。
         题目选项2-4个、不重复、仅一个正确答案。不得编造音频网址或听辨题。不要生成 HTML、Markdown、脚本。
         ipa 不要包含外层斜杠；ipaSegments 必须包含重音符号等全部字符，按顺序直接拼接后与 ipa 完全一致。
@@ -98,7 +98,7 @@ public class DeepSeekWordGenerator implements WordGenerator {
       normalizeIpa(result);
       configs.validate(result, "WORD");
       // 音频资源由可信导入流程维护，不采纳模型生成的地址。
-      result.putObject("audio").put("url", "").put("objectKey", "").put("provider", "");
+      result.putObject("audio").put("url", "");
       return result;
     } catch (InterruptedException ex) {
       Thread.currentThread().interrupt();

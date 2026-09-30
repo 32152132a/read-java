@@ -36,26 +36,11 @@ public class ContentService {
   }
 
   public record Entry(
-      String id,
-      String kind,
-      String sourceId,
-      String scope,
-      String label,
-      int version,
-      Integer publishedVersion) {}
+      String id, String kind, String sourceId, String scope, String label, int version) {}
 
-  public record Detail(
-      String id,
-      String kind,
-      String label,
-      int version,
-      Integer publishedVersion,
-      JsonNode config,
-      List<Map<String, Object>> history) {}
+  public record Detail(String id, String kind, String label, int version, JsonNode config) {}
 
   public record SaveRequest(int version, JsonNode config) {}
-
-  public record VersionRequest(int version) {}
 
   public List<Entry> list(String user, String kind, String query) {
     ContentConfig.require(Set.of("WORD", "PHONEME").contains(kind), "内容类型无效");
@@ -77,8 +62,7 @@ public class ContentService {
         r.getString("source_id"),
         r.getString("scope_id"),
         r.getString("label"),
-        r.getInt("version"),
-        (Integer) r.getObject("published_version"));
+        r.getInt("version"));
   }
 
   public Entry get(String id) {
@@ -94,43 +78,22 @@ public class ContentService {
     return e;
   }
 
-  public Detail detail(String user, String id, Integer revision) {
+  public Detail detail(String user, String id) {
     Entry e = editable(user, id);
-    int v = revision == null ? e.version() : revision;
-    return new Detail(
-        e.id(),
-        e.kind(),
-        e.label(),
-        e.version(),
-        e.publishedVersion(),
-        read(e, v),
-        db.query(
-            "SELECT version, origin, editor_id AS `editorId`, created_at AS `createdAt` FROM content_revisions WHERE entry_id=? ORDER BY version DESC LIMIT 30",
-            (row, n) ->
-                Map.<String, Object>of(
-                    "version",
-                    row.getInt("version"),
-                    "origin",
-                    row.getString("origin"),
-                    "editorId",
-                    row.getString("editorId"),
-                    "createdAt",
-                    row.getTimestamp("createdAt").toInstant().toString()),
-            id));
+    return new Detail(e.id(), e.kind(), e.label(), e.version(), current(e));
   }
 
-  public ObjectNode read(Entry e, int version) {
-    ContentConfig.require(version >= 0, "版本不能为负数");
-    if (version > 0)
-      return db
-          .query(
-              "SELECT config_json FROM content_revisions WHERE entry_id=? AND version=?",
-              (r, n) -> configs.read(r.getString(1)),
-              e.id(),
-              version)
-          .stream()
-          .findFirst()
-          .orElseThrow(() -> missing("版本不存在"));
+  private ObjectNode current(Entry e) {
+    List<String> stored =
+        db.queryForList(
+            "SELECT config_json FROM content_entries WHERE id=? AND config_json IS NOT NULL",
+            String.class,
+            e.id());
+    if (!stored.isEmpty()) return configs.read(stored.getFirst());
+    return base(e);
+  }
+
+  private ObjectNode base(Entry e) {
     if (e.kind().equals("WORD")) {
       ObjectNode c =
           db
@@ -146,7 +109,7 @@ public class ContentService {
               .stream()
               .findFirst()
               .orElseThrow(() -> missing("单词不存在"));
-      // 把现有课程的拆读数据引入编辑草稿，不覆盖正在学习的会话。
+      // 把现有课程的拆读数据引入当前配置，不覆盖正在学习的会话快照。
       for (String json :
           db.queryForList(
               "SELECT content_json FROM learning_units WHERE content_type IN ('IPA_DECODING','WORD_DECODING')",
@@ -194,8 +157,7 @@ public class ContentService {
                   .put(
                       "gbUrl",
                       r.getString("audio_gb_url") == null ? "" : r.getString("audio_gb_url"))
-                  .put("objectKey", "")
-                  .put("provider", "");
+                  .put("objectKey", "");
               return c;
             },
             e.sourceId())
@@ -212,54 +174,29 @@ public class ContentService {
       ContentConfig.require(
           request.config().path("word").asText().equalsIgnoreCase(e.label()), "不能在编辑中更换单词，请创建新词条");
     int v = request.version() + 1;
+    String sourceId = e.sourceId();
+    if (e.kind().equals("WORD")) sourceId = ensureWord(request.config(), sourceId);
     if (db.update(
-            "UPDATE content_entries SET version=?, label=? WHERE id=? AND version=?",
+            "UPDATE content_entries SET version=?,label=?,source_id=?,config_json=? WHERE id=? AND version=?",
             v,
             request.config().path(e.kind().equals("WORD") ? "word" : "ipa").asText(),
+            sourceId,
+            request.config().toString(),
             id,
             request.version())
         != 1) throw conflict();
-    db.update(
-        "INSERT INTO content_revisions(entry_id,version,config_json,editor_id,origin) VALUES(?,?,?,?,?)",
-        id,
-        v,
-        request.config().toString(),
-        user,
-        "MANUAL");
-    return detail(user, id, null);
-  }
-
-  public JsonNode validate(String user, String id, JsonNode config) {
-    Entry e = editable(user, id);
-    configs.validate(config, e.kind());
-    return config;
-  }
-
-  @Transactional
-  public Detail publish(String user, String id, int version) {
-    Entry e = editable(user, id);
-    if (e.version() != version || version < 1) throw conflict();
-    ObjectNode c = read(e, version);
-    configs.validate(c, e.kind());
-    if (db.update(
-            "UPDATE content_entries SET published_version=? WHERE id=? AND version=?",
-            version,
-            id,
-            version)
-        != 1) throw conflict();
     if (e.kind().equals("WORD")) {
-      String wordId = ensureWord(c, e.sourceId());
-      db.update("UPDATE content_entries SET source_id=? WHERE id=?", wordId, id);
       if (e.scope().isEmpty())
         db.update(
             "UPDATE words SET ipa=?,meaning=?,audio_url=? WHERE id=?",
-            c.path("ipa").asText(),
-            c.path("meaning").asText(),
-            c.path("audio").path("url").asText(""),
-            wordId);
-      linkLibraries(id, wordId);
+            request.config().path("ipa").asText(),
+            request.config().path("meaning").asText(),
+            request.config().path("audio").path("url").asText(""),
+            sourceId);
+      linkLibraries(id, sourceId);
+      resetLibrariesForWord(e.scope(), sourceId);
     } else if (e.scope().isEmpty()) {
-      // 旧课程以 IPA 关联音标，首次发布前补充稳定 ID，避免修改 IPA 后断开引用。
+      // 旧课程以 IPA 关联音标，首次修改时补充稳定 ID，避免修改 IPA 后断开引用。
       String oldIpa =
           db.queryForObject("SELECT ipa FROM phonemes WHERE id=?", String.class, e.sourceId());
       for (var unit :
@@ -276,21 +213,27 @@ public class ContentService {
       }
       db.update(
           "UPDATE phonemes SET ipa=?,category=?,group_code=?,audio_url=?,audio_us_url=?,audio_gb_url=?,detail_json=? WHERE id=?",
-          c.path("ipa").asText(),
-          c.path("category").asText(),
-          c.path("group").asText(),
-          c.path("audio").path("url").asText(""),
-          c.path("audio").path("usUrl").asText(""),
-          c.path("audio").path("gbUrl").asText(""),
-          c.toString(),
+          request.config().path("ipa").asText(),
+          request.config().path("category").asText(),
+          request.config().path("group").asText(),
+          request.config().path("audio").path("url").asText(""),
+          request.config().path("audio").path("usUrl").asText(""),
+          request.config().path("audio").path("gbUrl").asText(""),
+          request.config().toString(),
           e.sourceId());
     }
-    return detail(user, id, null);
+    return detail(user, id);
   }
 
-  public void linkPublishedEntry(String id) {
+  @Transactional
+  public void linkCurrentEntry(String id) {
     Entry entry = get(id);
-    if (entry.publishedVersion() != null) linkLibraries(id, entry.sourceId());
+    if (!entry.kind().equals("WORD")) return;
+    ObjectNode config = current(entry);
+    String wordId = ensureWord(config, entry.sourceId());
+    if (!wordId.equals(entry.sourceId()))
+      db.update("UPDATE content_entries SET source_id=? WHERE id=?", wordId, id);
+    linkLibraries(id, wordId);
   }
 
   private void linkLibraries(String id, String wordId) {
@@ -305,14 +248,39 @@ public class ContentService {
               Integer.class,
               library,
               wordId)
-          == 0)
+          == 0) {
         db.update(
             "INSERT INTO word_library_items(library_id,word_id,sort_order) VALUES(?,?,?)",
             library,
             wordId,
             order);
+        resetLibrary(library, null);
+      }
       db.update("UPDATE word_libraries SET status='SUCCEEDED' WHERE id=?", library);
     }
+  }
+
+  private void resetLibrariesForWord(String scope, String wordId) {
+    for (String library :
+        db.queryForList(
+            "SELECT library_id FROM word_library_items WHERE word_id=?", String.class, wordId))
+      resetLibrary(library, scope.isEmpty() ? null : scope);
+  }
+
+  private void resetLibrary(String library, String user) {
+    if (user == null) {
+      db.update("DELETE FROM content_library_answers WHERE library_id=?", library);
+      db.update("DELETE FROM user_word_progress WHERE library_id=?", library);
+      db.update("UPDATE user_word_libraries SET last_position=0 WHERE library_id=?", library);
+      return;
+    }
+    db.update(
+        "DELETE FROM content_library_answers WHERE user_id=? AND library_id=?", user, library);
+    db.update("DELETE FROM user_word_progress WHERE user_id=? AND library_id=?", user, library);
+    db.update(
+        "UPDATE user_word_libraries SET last_position=0 WHERE user_id=? AND library_id=?",
+        user,
+        library);
   }
 
   private String ensureWord(JsonNode c, String candidate) {
@@ -321,7 +289,7 @@ public class ContentService {
         db.queryForList(
             "SELECT id FROM words WHERE normalized_word=? AND accent='US'", String.class, word);
     if (!ids.isEmpty()) return ids.getFirst();
-    // INSERT 后若并发发布碰到唯一约束，事务回滚，调用方可安全重试。
+    // INSERT 后若并发生成碰到唯一约束，事务回滚，调用方可安全重试。
     db.update(
         "INSERT INTO words(id,normalized_word,display_word,ipa,meaning,accent,audio_url) VALUES(?,?,?,?,?,'US',?)",
         candidate,
@@ -343,48 +311,44 @@ public class ContentService {
             (r, n) -> entry(r),
             user,
             word.toLowerCase(Locale.ROOT));
-    if (!old.isEmpty()) return old.getFirst().id(); // 已有人工草稿/发布内容优先，生成任务不覆盖。
+    if (!old.isEmpty()) return old.getFirst().id(); // 已有人工内容优先，生成任务不覆盖。
     String id = id("content"), source = id("w");
+    source = ensureWord(config, source);
     db.update(
-        "INSERT INTO content_entries(id,kind,source_id,scope_id,label,version) VALUES(?,'WORD',?,?,?,1)",
+        "INSERT INTO content_entries(id,kind,source_id,scope_id,label,version,config_json) VALUES(?,'WORD',?,?,?,1,?)",
         id,
         source,
         user,
-        word);
-    db.update(
-        "INSERT INTO content_revisions(entry_id,version,config_json,editor_id,origin) VALUES(?,1,?,?,?)",
-        id,
-        config.toString(),
-        user,
-        "DEEPSEEK");
+        word,
+        config.toString());
     return id;
   }
 
-  public ObjectNode published(String user, String kind, String source) {
+  public ObjectNode current(String user, String kind, String source) {
     List<Entry> found =
         db.query(
-            "SELECT * FROM content_entries WHERE kind=? AND source_id=? AND (scope_id='' OR scope_id=?) AND published_version IS NOT NULL ORDER BY CASE WHEN scope_id='' THEN 1 ELSE 0 END",
+            "SELECT * FROM content_entries WHERE kind=? AND source_id=? AND (scope_id='' OR scope_id=?) ORDER BY CASE WHEN scope_id='' THEN 1 ELSE 0 END",
             (r, n) -> entry(r),
             kind,
             source,
             user);
-    return found.isEmpty() ? null : read(found.getFirst(), found.getFirst().publishedVersion());
+    return found.isEmpty() ? null : current(found.getFirst());
   }
 
   public JsonNode publicWord(String user, String source) {
-    ObjectNode c = published(user, "WORD", source);
+    ObjectNode c = current(user, "WORD", source);
     if (c == null) {
-      Entry e = new Entry("", "WORD", source, "", "", 0, null);
-      c = read(e, 0);
+      Entry e = new Entry("", "WORD", source, "", "", 0);
+      c = base(e);
     }
     return configs.publicView(c);
   }
 
   public JsonNode publicPhoneme(String source) {
-    ObjectNode c = published("", "PHONEME", source);
+    ObjectNode c = current("", "PHONEME", source);
     if (c == null) {
-      Entry e = new Entry("", "PHONEME", source, "", "", 0, null);
-      c = read(e, 0);
+      Entry e = new Entry("", "PHONEME", source, "", "", 0);
+      c = base(e);
     }
     return configs.publicView(c);
   }
@@ -402,15 +366,13 @@ public class ContentService {
     List<Object> parameters = new ArrayList<>();
     parameters.add(user);
     parameters.addAll(ids);
-    // 一次关联公共/个人的已发布版本，前端只接收完整对象。
+    // 一次关联公共/个人当前配置，前端只接收完整对象。
     db.query(
         """
-      SELECT w.*, COALESCE(pr.config_json,gr.config_json) AS config_json
+      SELECT w.*, COALESCE(pe.config_json,ge.config_json) AS config_json
       FROM words w
       LEFT JOIN content_entries pe ON pe.kind='WORD' AND pe.source_id=w.id AND pe.scope_id=?
-      LEFT JOIN content_revisions pr ON pr.entry_id=pe.id AND pr.version=pe.published_version
       LEFT JOIN content_entries ge ON ge.kind='WORD' AND ge.source_id=w.id AND ge.scope_id=''
-      LEFT JOIN content_revisions gr ON gr.entry_id=ge.id AND gr.version=ge.published_version
       WHERE w.id IN (
       """
             + placeholders
@@ -434,14 +396,12 @@ public class ContentService {
 
   @Transactional
   public Map<String, Object> study(String user, String library) {
-    boolean allowed =
-        db.queryForObject(
-                "SELECT COUNT(*) FROM user_word_libraries WHERE user_id=? AND library_id=?",
-                Integer.class,
-                user,
-                library)
-            > 0;
-    if (!allowed) throw missing("请先添加该词库");
+    if (db.queryForObject(
+            "SELECT COUNT(*) FROM user_word_libraries WHERE user_id=? AND library_id=?",
+            Integer.class,
+            user,
+            library)
+        == 0) throw missing("请先添加该词库");
     var items = mapper.createArrayNode();
     List<String> words =
         db.queryForList(
@@ -454,50 +414,44 @@ public class ContentService {
       c.put("wordId", word);
       items.add(c);
     }
-    ContentConfig.require(!items.isEmpty(), "词库暂无已发布单词");
-    String id = id("study");
-    db.update(
-        "INSERT INTO content_snapshots(id,user_id,library_id,content_json) VALUES(?,?,?,?)",
-        id,
-        user,
-        library,
-        items.toString());
-    return Map.of("sessionId", id, "items", configs.publicView(items));
+    ContentConfig.require(!items.isEmpty(), "词库暂无可学习单词");
+    return Map.of("sessionId", library, "items", configs.publicView(items));
   }
 
   @Transactional
   public Map<String, Object> answer(
-      String user, String snapshot, String question, String selected) {
+      String user, String sessionId, String question, String selected) {
     ContentConfig.require(question != null && selected != null, "题目和选项不能为空");
-    db.queryForList(
-        "SELECT id FROM content_snapshots WHERE id=? AND user_id=? FOR UPDATE", snapshot, user);
-    JsonNode items =
-        db
-            .query(
-                "SELECT content_json FROM content_snapshots WHERE id=? AND user_id=?",
-                (r, n) -> mapper.readTree(r.getString(1)),
-                snapshot,
-                user)
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> missing("练习不存在"));
+    LibrarySession session = librarySession(user, sessionId);
     String[] key = question.split(":", 2);
     ContentConfig.require(key.length == 2, "题目编号无效");
+    ContentConfig.require(
+        db.queryForObject(
+                "SELECT COUNT(*) FROM word_library_items WHERE library_id=? AND word_id=?",
+                Integer.class,
+                session.library(),
+                key[0])
+            > 0,
+        "单词不属于当前词库");
+    ObjectNode item = wordConfigs(user, List.of(key[0])).get(key[0]);
+    if (item == null) throw missing("单词不存在");
     JsonNode q = null;
-    for (JsonNode item : items)
-      if (item.path("wordId").asText().equals(key[0]))
-        for (JsonNode candidate : item.path("questions"))
-          if (candidate.path("id").asText().equals(key[1])) q = candidate;
+    for (JsonNode candidate : item.path("questions"))
+      if (candidate.path("id").asText().equals(key[1])) q = candidate;
     if (q == null) throw missing("题目不存在");
     boolean exists = false;
     for (JsonNode o : q.path("options")) if (o.path("id").asText().equals(selected)) exists = true;
     ContentConfig.require(exists, "选项不存在");
     boolean correct = q.path("correctOptionId").asText().equals(selected);
     db.update(
-        "DELETE FROM content_answers WHERE snapshot_id=? AND question_id=?", snapshot, question);
+        "DELETE FROM content_library_answers WHERE user_id=? AND library_id=? AND question_id=?",
+        user,
+        session.library(),
+        question);
     db.update(
-        "INSERT INTO content_answers(snapshot_id,question_id,selected_option_id,correct) VALUES(?,?,?,?)",
-        snapshot,
+        "INSERT INTO content_library_answers(user_id,library_id,question_id,selected_option_id,correct) VALUES(?,?,?,?,?)",
+        user,
+        session.library(),
         question,
         selected,
         correct);
@@ -514,48 +468,52 @@ public class ContentService {
 
   @Transactional
   public Map<String, Object> completeWord(String user, String snapshot, String word) {
-    var row =
-        db
-            .queryForList(
-                "SELECT library_id,content_json FROM content_snapshots WHERE id=? AND user_id=? AND library_id IS NOT NULL FOR UPDATE",
-                snapshot,
-                user)
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> missing("练习不存在"));
-    JsonNode target = null;
-    for (JsonNode item : mapper.readTree((String) row.get("content_json")))
-      if (item.path("wordId").asText().equals(word)) target = item;
-    if (target == null) throw missing("单词不属于当前练习");
+    LibrarySession session = librarySession(user, snapshot);
+    ContentConfig.require(
+        db.queryForObject(
+                "SELECT COUNT(*) FROM word_library_items WHERE library_id=? AND word_id=?",
+                Integer.class,
+                session.library(),
+                word)
+            > 0,
+        "单词不属于当前词库");
+    ObjectNode target = wordConfigs(user, List.of(word)).get(word);
+    if (target == null) throw missing("单词不存在");
     for (JsonNode q : target.path("questions"))
       ContentConfig.require(
           db.queryForObject(
-                  "SELECT COUNT(*) FROM content_answers WHERE snapshot_id=? AND question_id=? AND correct=true",
+                  "SELECT COUNT(*) FROM content_library_answers WHERE user_id=? AND library_id=? AND question_id=? AND correct=true",
                   Integer.class,
-                  snapshot,
+                  user,
+                  session.library(),
                   word + ":" + q.path("id").asText())
               > 0,
           "请先完成该词的练习题");
-    String library = (String) row.get("library_id");
-    if (db.queryForObject(
-            "SELECT COUNT(*) FROM user_word_libraries WHERE user_id=? AND library_id=?",
-            Integer.class,
-            user,
-            library)
-        == 0) throw missing("词库已移除");
     if (db.update(
             "UPDATE user_word_progress SET status='COMPLETED' WHERE user_id=? AND library_id=? AND word_id=?",
             user,
-            library,
+            session.library(),
             word)
         == 0)
       db.update(
           "INSERT INTO user_word_progress(user_id,library_id,word_id,status,attempts) VALUES(?,?,?,'COMPLETED',1)",
           user,
-          library,
+          session.library(),
           word);
     return Map.of("wordId", word, "completed", true);
   }
+
+  private LibrarySession librarySession(String user, String sessionId) {
+    if (db.queryForList(
+            "SELECT library_id FROM user_word_libraries WHERE user_id=? AND library_id=? FOR UPDATE",
+            String.class,
+            user,
+            sessionId)
+        .isEmpty()) throw missing("词库已移除");
+    return new LibrarySession(sessionId);
+  }
+
+  private record LibrarySession(String library) {}
 
   public static String id(String prefix) {
     return prefix + "_" + UUID.randomUUID().toString().replace("-", "");

@@ -39,11 +39,8 @@ public class ContentController {
   }
 
   @GetMapping("/content/{id}")
-  public Object detail(
-      @AuthenticationPrincipal Jwt jwt,
-      @PathVariable String id,
-      @RequestParam(required = false) Integer revision) {
-    return contents.detail(jwt.getSubject(), id, revision);
+  public Object detail(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+    return contents.detail(jwt.getSubject(), id);
   }
 
   @PutMapping("/content/{id}")
@@ -52,22 +49,6 @@ public class ContentController {
       @PathVariable String id,
       @RequestBody ContentService.SaveRequest request) {
     return contents.save(jwt.getSubject(), id, request);
-  }
-
-  @PostMapping("/content/{id}/validate")
-  public Object validate(
-      @AuthenticationPrincipal Jwt jwt,
-      @PathVariable String id,
-      @RequestBody ContentService.SaveRequest request) {
-    return contents.validate(jwt.getSubject(), id, request.config());
-  }
-
-  @PostMapping("/content/{id}/publish")
-  public Object publish(
-      @AuthenticationPrincipal Jwt jwt,
-      @PathVariable String id,
-      @RequestBody ContentService.VersionRequest request) {
-    return contents.publish(jwt.getSubject(), id, request.version());
   }
 
   @PostMapping("/word-libraries/custom-jobs")
