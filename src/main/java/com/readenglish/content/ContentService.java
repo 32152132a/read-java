@@ -176,7 +176,7 @@ public class ContentService {
               ObjectNode c = configs.read(r.getString("detail_json"));
               c.put("schemaVersion", 1)
                   .put("kind", "PHONEME")
-                  .put("accent", "US")
+                  .put("accent", "BOTH")
                   .put("ipa", r.getString("ipa"))
                   .put("category", r.getString("category"))
                   .put("group", r.getString("group_code"));
@@ -188,6 +188,12 @@ public class ContentService {
               c.putArray("questions");
               c.putObject("audio")
                   .put("url", r.getString("audio_url") == null ? "" : r.getString("audio_url"))
+                  .put(
+                      "usUrl",
+                      r.getString("audio_us_url") == null ? "" : r.getString("audio_us_url"))
+                  .put(
+                      "gbUrl",
+                      r.getString("audio_gb_url") == null ? "" : r.getString("audio_gb_url"))
                   .put("objectKey", "")
                   .put("provider", "");
               return c;
@@ -269,11 +275,13 @@ public class ContentService {
         }
       }
       db.update(
-          "UPDATE phonemes SET ipa=?,category=?,group_code=?,audio_url=?,detail_json=? WHERE id=?",
+          "UPDATE phonemes SET ipa=?,category=?,group_code=?,audio_url=?,audio_us_url=?,audio_gb_url=?,detail_json=? WHERE id=?",
           c.path("ipa").asText(),
           c.path("category").asText(),
           c.path("group").asText(),
           c.path("audio").path("url").asText(""),
+          c.path("audio").path("usUrl").asText(""),
+          c.path("audio").path("gbUrl").asText(""),
           c.toString(),
           e.sourceId());
     }
@@ -374,7 +382,11 @@ public class ContentService {
 
   public JsonNode publicPhoneme(String source) {
     ObjectNode c = published("", "PHONEME", source);
-    return c == null ? null : configs.publicView(c);
+    if (c == null) {
+      Entry e = new Entry("", "PHONEME", source, "", "", 0, null);
+      c = read(e, 0);
+    }
+    return configs.publicView(c);
   }
 
   public Map<String, JsonNode> publicWords(String user, List<String> ids) {

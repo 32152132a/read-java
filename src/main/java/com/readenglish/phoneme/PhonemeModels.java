@@ -7,7 +7,14 @@ public final class PhonemeModels {
 
   private PhonemeModels() {}
 
-  public record PhonemeItem(String id, String ipa, String audioUrl, int order) {}
+  public record PhonemeItem(
+      String id,
+      String ipa,
+      String audioUrl,
+      String audioUsUrl,
+      String audioGbUrl,
+      String fallbackWord,
+      int order) {}
 
   public record PhonemeGroup(String code, String name, List<PhonemeItem> items) {}
 
@@ -22,6 +29,9 @@ public final class PhonemeModels {
       String group,
       String category,
       String audioUrl,
+      String audioUsUrl,
+      String audioGbUrl,
+      String fallbackWord,
       String description,
       JsonNode mouth,
       List<String> pronunciationSteps,

@@ -57,7 +57,7 @@ public class ContentConfig {
     require(
         c.path("schemaVersion").asInt() == 1 && kind.equals(c.path("kind").asText()), "配置类型或版本不正确");
     text(c, "ipa", 160);
-    require("US".equals(c.path("accent").asText()), "当前仅支持美音 US");
+    require(Set.of("US", "GB", "BOTH").contains(c.path("accent").asText()), "口音只能是 US、GB 或 BOTH");
     segments(c.path("ipaSegments"));
     StringBuilder ipa = new StringBuilder();
     for (JsonNode segment : c.path("ipaSegments")) ipa.append(segment.path("text").asText());
@@ -119,6 +119,10 @@ public class ContentConfig {
     // 发布时同时写入 words/phonemes 的 VARCHAR(500) 字段。
     optionalText(c.path("audio"), "url", 500);
     url(c.path("audio").path("url").asText(""));
+    optionalText(c.path("audio"), "usUrl", 500);
+    url(c.path("audio").path("usUrl").asText(""));
+    optionalText(c.path("audio"), "gbUrl", 500);
+    url(c.path("audio").path("gbUrl").asText(""));
     optionalText(c.path("audio"), "objectKey", 500);
     optionalText(c.path("audio"), "provider", 80);
     array(c, "questions", 20);

@@ -50,7 +50,7 @@ class AuthApiTests {
       assertThat(meResponse.statusCode()).isEqualTo(200);
       assertThat(meBody.path("data").path("id").stringValue()).isEqualTo("dev-user");
       assertThat(meBody.path("data").path("nickname").stringValue()).isEqualTo("永庆");
-      assertThat(meBody.path("data").path("accentPreference").stringValue()).isEqualTo("US");
+      assertThat(meBody.path("data").path("accentPreference").stringValue()).isIn("US", "GB");
     }
   }
 
@@ -104,6 +104,24 @@ class AuthApiTests {
               .path("data")
               .path("accessToken")
               .stringValue();
+
+      var accepted =
+          client.send(
+              request("/api/v1/users/me/preferences")
+                  .header("Authorization", "Bearer " + accessToken)
+                  .header("Content-Type", "application/json")
+                  .method(
+                      "PATCH", HttpRequest.BodyPublishers.ofString("{\"accentPreference\":\"GB\"}"))
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      assertThat(accepted.statusCode()).isEqualTo(200);
+      assertThat(
+              objectMapper
+                  .readTree(accepted.body())
+                  .path("data")
+                  .path("accentPreference")
+                  .stringValue())
+          .isEqualTo("GB");
 
       var response =
           client.send(

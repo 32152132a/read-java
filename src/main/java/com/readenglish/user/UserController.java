@@ -35,9 +35,10 @@ public final class UserController {
   @PatchMapping("/me/preferences")
   public UserProfile updatePreferences(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody UpdatePreferenceRequest request) {
-    if (!"US".equals(request.accentPreference())) {
-      throw new ApiException(HttpStatus.BAD_REQUEST, "PREFERENCE_NOT_SUPPORTED", "当前仅支持美式英语发音");
+    String accent = request.accentPreference().trim().toUpperCase();
+    if (!java.util.Set.of("US", "GB").contains(accent)) {
+      throw new ApiException(HttpStatus.BAD_REQUEST, "PREFERENCE_NOT_SUPPORTED", "发音偏好只能是 US 或 GB");
     }
-    return userService.updateAccent(jwt.getSubject(), request.accentPreference());
+    return userService.updateAccent(jwt.getSubject(), accent);
   }
 }

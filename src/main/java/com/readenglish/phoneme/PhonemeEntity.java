@@ -23,6 +23,12 @@ class PhonemeEntity {
   @Column(name = "audio_url")
   private String audioUrl;
 
+  @Column(name = "audio_us_url")
+  private String audioUsUrl;
+
+  @Column(name = "audio_gb_url")
+  private String audioGbUrl;
+
   @Column(name = "sort_order", nullable = false)
   private int sortOrder;
 
@@ -49,6 +55,14 @@ class PhonemeEntity {
 
   String getAudioUrl() {
     return audioUrl;
+  }
+
+  String getAudioUsUrl() {
+    return audioUsUrl;
+  }
+
+  String getAudioGbUrl() {
+    return audioGbUrl;
   }
 
   int getSortOrder() {

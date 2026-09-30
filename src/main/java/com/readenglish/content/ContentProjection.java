@@ -68,6 +68,10 @@ public class ContentProjection {
                     "exampleWords",
                     "memoryTip")) content.set(key, c.path(key));
             content.put("audioUrl", c.path("audio").path("url").asText());
+            content
+                .put("audioUsUrl", c.path("audio").path("usUrl").asText())
+                .put("audioGbUrl", c.path("audio").path("gbUrl").asText())
+                .put("fallbackWord", c.path("speechFallback").asText());
           }
         }
       }

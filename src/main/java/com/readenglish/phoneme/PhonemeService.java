@@ -53,6 +53,9 @@ public class PhonemeService {
                           phoneme.getId(),
                           phoneme.getIpa(),
                           phoneme.getAudioUrl(),
+                          phoneme.getAudioUsUrl(),
+                          phoneme.getAudioGbUrl(),
+                          fallbackWord(readDetail(phoneme.getDetailJson())),
                           phoneme.getSortOrder()))
               .toList();
       responses.add(new PhonemeGroup(groupCode, GROUP_NAMES.get(groupCode), items));
@@ -89,6 +92,9 @@ public class PhonemeService {
         phoneme.getGroupCode(),
         phoneme.getCategory(),
         phoneme.getAudioUrl(),
+        phoneme.getAudioUsUrl(),
+        phoneme.getAudioGbUrl(),
+        fallbackWord(detail),
         textOrNull(detail, "description"),
         detail.path("mouth"),
         steps,
@@ -108,5 +114,12 @@ public class PhonemeService {
   private static String textOrNull(JsonNode node, String fieldName) {
     JsonNode value = node.path(fieldName);
     return value.isMissingNode() || value.isNull() ? null : value.stringValue();
+  }
+
+  private static String fallbackWord(JsonNode detail) {
+    String configured = textOrNull(detail, "speechFallback");
+    if (configured != null && !configured.isBlank()) return configured;
+    JsonNode examples = detail.path("exampleWords");
+    return examples.isArray() && !examples.isEmpty() ? textOrNull(examples.get(0), "word") : null;
   }
 }

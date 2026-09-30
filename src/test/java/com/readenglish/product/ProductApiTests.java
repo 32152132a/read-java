@@ -33,14 +33,17 @@ class ProductApiTests {
       JsonNode home = getData(client, token, "/api/v1/home");
       JsonNode flow = getData(client, token, "/api/v1/learning-flow");
       JsonNode libraries = getData(client, token, "/api/v1/word-libraries/mine");
-      JsonNode phonemes = getData(client, token, "/api/v1/phonemes?group=VOWEL");
+      JsonNode phonemes = getData(client, token, "/api/v1/phonemes");
 
       assertThat(home.path("todayTask").path("templateCode").stringValue()).isEqualTo("phoneme");
       assertThat(flow.path("version").longValue()).isPositive();
       assertThat(flow.path("nodes").size()).isEqualTo(7);
       assertThat(libraries.path("items").get(0).path("id").stringValue()).isEqualTo("lib_base");
       assertThat(libraries.path("items").get(0).path("removable").booleanValue()).isFalse();
-      assertThat(phonemes.path("groups").get(0).path("items").size()).isPositive();
+      assertThat(phonemes.path("groups").get(0).path("items").size()).isEqualTo(20);
+      assertThat(phonemes.path("groups").get(1).path("items").size()).isEqualTo(28);
+      assertThat(phonemes.path("groups").get(0).path("items").get(0).path("fallbackWord").asText())
+          .isEqualTo("see");
     }
   }
 
