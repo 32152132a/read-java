@@ -24,7 +24,7 @@ class IntegrationRegressionTests {
   @Test
   void localWebPreflightAllowsRequiredHeadersButRejectsUnknownOrigins() throws Exception {
     try (var client = HttpClient.newHttpClient()) {
-      for (String origin : new String[] {"http://127.0.0.1:5173", "https://unknown.example"}) {
+      for (String origin : new String[] {"http://127.0.0.1:15173", "https://unknown.example"}) {
         var response =
             client.send(
                 HttpRequest.newBuilder(uri("/learning-flow/current/complete"))

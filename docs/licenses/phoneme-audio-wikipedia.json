@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "sourceRepository": "https://github.com/joshstephenson/PhoneticFlashCards",
+  "sourceCommit": "0fb0513d311175564f71bd7fcdca41d54f38f297",
+  "sourcePages": [
+    "https://en.wikipedia.org/wiki/IPA_vowel_chart_with_audio",
+    "https://en.wikipedia.org/wiki/IPA_consonant_chart_with_audio"
+  ],
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+  "objectPrefix": "read-english/phonemes/wikipedia-ipa/0fb0513d",
+  "assets": [
+    { "id": "p_1", "ipa": "/ɪ/", "sourceSymbol": "ɪ", "sourceFile": "ipa_audio/vowels/Near-close_near-front_unrounded_vowel_ɪ.ogg.mp3" },
+    { "id": "p_v_03", "ipa": "/e/", "sourceSymbol": "ɛ", "sourceFile": "ipa_audio/vowels/Open-mid_front_unrounded_vowel_ɛ.ogg.mp3", "mappingNote": "英语教学音标 /e/ 使用 DRESS 元音参考音 [ɛ]。" },
+    { "id": "p_v_04", "ipa": "/æ/", "sourceSymbol": "æ", "sourceFile": "ipa_audio/vowels/Near-open_front_unrounded_vowel_æ.ogg.mp3" },
+    { "id": "p_v_06", "ipa": "/ə/", "sourceSymbol": "ə", "sourceFile": "ipa_audio/vowels/Mid-central_vowel_ə.ogg.mp3" },
+    { "id": "p_v_09", "ipa": "/ʊ/", "sourceSymbol": "ʊ", "sourceFile": "ipa_audio/vowels/Near-close_near-back_rounded_vowel_ʊ.ogg.mp3" },
+    { "id": "p_v_11", "ipa": "/ɒ/", "sourceSymbol": "ɒ", "sourceFile": "ipa_audio/vowels/Open_back_rounded_vowel_ɒ.ogg.mp3" },
+    { "id": "p_3", "ipa": "/p/", "sourceSymbol": "p", "sourceFile": "ipa_audio/consonants/archive/Voiceless_bilabial_plosive.ogg.mp3" },
+    { "id": "p_c_02", "ipa": "/b/", "sourceSymbol": "b", "sourceFile": "ipa_audio/consonants/archive/Voiced_bilabial_plosive.ogg.mp3" },
+    { "id": "p_c_03", "ipa": "/t/", "sourceSymbol": "t", "sourceFile": "ipa_audio/consonants/Voiceless_alveolar_plosive_t.ogg.mp3" },
+    { "id": "p_c_04", "ipa": "/d/", "sourceSymbol": "d", "sourceFile": "ipa_audio/consonants/Voiced_alveolar_plosive_d.ogg.mp3" },
+    { "id": "p_c_05", "ipa": "/k/", "sourceSymbol": "k", "sourceFile": "ipa_audio/consonants/Voiceless_velar_plosive_k.ogg.mp3" },
+    { "id": "p_c_06", "ipa": "/ɡ/", "sourceSymbol": "ɡ", "sourceFile": "ipa_audio/consonants/Voiced_velar_plosive_g.ogg.mp3" },
+    { "id": "p_c_07", "ipa": "/f/", "sourceSymbol": "f", "sourceFile": "ipa_audio/consonants/Voiceless_labio-dental_fricative_f.ogg.mp3" },
+    { "id": "p_c_08", "ipa": "/v/", "sourceSymbol": "v", "sourceFile": "ipa_audio/consonants/Voiced_labio-dental_fricative_v.ogg.mp3" },
+    { "id": "p_c_09", "ipa": "/θ/", "sourceSymbol": "θ", "sourceFile": "ipa_audio/consonants/Voiceless_dental_fricative_θ.ogg.mp3" },
+    { "id": "p_c_10", "ipa": "/ð/", "sourceSymbol": "ð", "sourceFile": "ipa_audio/consonants/Voiced_dental_fricative_ð.ogg.mp3" },
+    { "id": "p_c_11", "ipa": "/s/", "sourceSymbol": "s", "sourceFile": "ipa_audio/consonants/Voiceless_alveolar_sibilant_s.ogg.mp3" },
+    { "id": "p_c_12", "ipa": "/z/", "sourceSymbol": "z", "sourceFile": "ipa_audio/consonants/Voiced_alveolar_sibilant_z.ogg.mp3" },
+    { "id": "p_c_13", "ipa": "/ʃ/", "sourceSymbol": "ʃ", "sourceFile": "ipa_audio/consonants/Voiceless_palato-alveolar_sibilant_ʃ.ogg.mp3" },
+    { "id": "p_c_14", "ipa": "/ʒ/", "sourceSymbol": "ʒ", "sourceFile": "ipa_audio/consonants/Voiced_palato-alveolar_sibilant_ʒ.ogg.mp3" },
+    { "id": "p_c_15", "ipa": "/h/", "sourceSymbol": "h", "sourceFile": "ipa_audio/consonants/archive/Voiceless_glottal_fricative.ogg.mp3" },
+    { "id": "p_c_16", "ipa": "/tʃ/", "sourceSymbol": "t̠ʃ", "sourceFile": "ipa_audio/consonants/archive/Voiceless_palato-alveolar_affricate.ogg.mp3" },
+    { "id": "p_c_17", "ipa": "/dʒ/", "sourceSymbol": "d̠ʒ", "sourceFile": "ipa_audio/consonants/archive/Voiced_palato-alveolar_affricate.ogg.mp3" },
+    { "id": "p_c_18", "ipa": "/m/", "sourceSymbol": "m", "sourceFile": "ipa_audio/consonants/Bilabial_nasal_m.ogg.mp3" },
+    { "id": "p_c_19", "ipa": "/n/", "sourceSymbol": "n", "sourceFile": "ipa_audio/consonants/Alveolar_nasal_n.ogg.mp3" },
+    { "id": "p_c_20", "ipa": "/ŋ/", "sourceSymbol": "ŋ", "sourceFile": "ipa_audio/consonants/Velar_nasal_ŋ.ogg.mp3" },
+    { "id": "p_c_21", "ipa": "/l/", "sourceSymbol": "l", "sourceFile": "ipa_audio/consonants/Voiced_alveolar_lateral_approximant_l.ogg.mp3" },
+    { "id": "p_c_22", "ipa": "/r/", "sourceSymbol": "ɹ", "sourceFile": "ipa_audio/consonants/archive/Alveolar_approximant_ɹ.ogg.mp3", "mappingNote": "英语教学常写 /r/，实际使用齿龈近音 [ɹ]，不使用颤音 [r]。" },
+    { "id": "p_c_23", "ipa": "/j/", "sourceSymbol": "j", "sourceFile": "ipa_audio/consonants/Voiced_palatal_approximant_j.ogg.mp3" },
+    { "id": "p_c_24", "ipa": "/w/", "sourceSymbol": "w", "sourceFile": "ipa_audio/consonants/archive/Voiced_labio-velar_approximant.ogg.mp3" },
+    { "id": "p_c_27", "ipa": "/ts/", "sourceSymbol": "ts", "sourceFile": "ipa_audio/consonants/archive/Voiceless_alveolar_sibilant_affricate.oga.mp3" },
+    { "id": "p_c_28", "ipa": "/dz/", "sourceSymbol": "dz", "sourceFile": "ipa_audio/consonants/archive/Voiced_alveolar_sibilant_affricate.oga.mp3" }
+  ],
+  "unmapped": [
+    "/iː/", "/ɜː/", "/ʌ/", "/uː/", "/ɔː/", "/ɑː/", "/eɪ/", "/aɪ/", "/ɔɪ/", "/əʊ/", "/aʊ/", "/ɪə/", "/eə/", "/ʊə/", "/tr/", "/dr/"
+  ]
+}

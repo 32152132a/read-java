@@ -34,6 +34,8 @@ class ProductApiTests {
       JsonNode flow = getData(client, token, "/api/v1/learning-flow");
       JsonNode libraries = getData(client, token, "/api/v1/word-libraries/mine");
       JsonNode phonemes = getData(client, token, "/api/v1/phonemes");
+      JsonNode mappedPhoneme = getData(client, token, "/api/v1/phonemes/p_1");
+      JsonNode fallbackPhoneme = getData(client, token, "/api/v1/phonemes/p_2");
 
       assertThat(home.path("todayTask").path("templateCode").stringValue()).isEqualTo("phoneme");
       assertThat(flow.path("version").longValue()).isPositive();
@@ -44,6 +46,8 @@ class ProductApiTests {
       assertThat(phonemes.path("groups").get(1).path("items").size()).isEqualTo(28);
       assertThat(phonemes.path("groups").get(0).path("items").get(0).path("fallbackWord").asText())
           .isEqualTo("see");
+      assertThat(mappedPhoneme.path("audioUrl").asText()).endsWith("/p_1.mp3");
+      assertThat(fallbackPhoneme.path("audioUrl").asText()).isEmpty();
     }
   }
 

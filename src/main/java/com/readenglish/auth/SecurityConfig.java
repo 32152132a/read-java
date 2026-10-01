@@ -71,7 +71,7 @@ public class SecurityConfig {
   CorsConfigurationSource corsConfigurationSource() {
     var configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(
-        java.util.List.of("http://127.0.0.1:5173", "http://localhost:5173"));
+        java.util.List.of("http://127.0.0.1:15173", "http://localhost:15173"));
     configuration.setAllowedMethods(
         java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
     configuration.setAllowedHeaders(

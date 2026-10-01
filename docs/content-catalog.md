@@ -64,4 +64,4 @@ DEEPSEEK_MODEL=deepseek-flash
 CONTENT_ADMIN_USER_IDS=需要维护公共内容的用户ID
 ```
 
-密钥只放在本地或部署环境。当前没有接入有道和 COS 上传；标准音频为空时，Web 使用浏览器英式或美式声线朗读例词。
+密钥只放在本地或部署环境。首批 32 个音素使用公开 COS 音频，来源、许可、映射和对象路径见 [音标音频署名与许可](licenses/phoneme-audio-wikipedia.md)。其余 16 个音素暂时不套用不准确的素材，标准音频为空时 Web 使用浏览器英式或美式声线朗读例词。有道尚未接入。
