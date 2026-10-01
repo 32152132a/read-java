@@ -2,6 +2,7 @@ package com.readenglish.content;
 
 import com.readenglish.common.api.ApiException;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -39,19 +40,15 @@ public class ContentJobs {
 
   public record Create(
       @NotBlank @Size(min = 2, max = 40) String name,
-      @NotBlank @Size(max = 30000) String wordsText) {}
+      @NotEmpty @Size(max = 200) List<@NotBlank @Size(max = 120) String> words) {}
 
   @Transactional
   public Map<String, Object> create(String user, String key, Create input) {
     ContentConfig.require(
         key != null && !key.isBlank() && key.length() <= 120, "需要 Idempotency-Key");
     List<String> words =
-        Arrays.stream(input.wordsText().split("[\\s,，;；]+"))
-            .map(s -> s.trim().toLowerCase(Locale.ROOT))
-            .filter(s -> !s.isEmpty())
-            .distinct()
-            .toList();
-    ContentConfig.require(!words.isEmpty() && words.size() <= 200, "每次支持 1–200 个不同单词");
+        input.words().stream().map(s -> s.trim().toLowerCase(Locale.ROOT)).toList();
+    ContentConfig.require(!words.isEmpty() && words.size() <= 200, "每次支持 1–200 个单词");
     for (String word : words)
       ContentConfig.require(
           word.length() <= 120 && word.matches("[a-z]+(?:['’-][a-z]+)*"),

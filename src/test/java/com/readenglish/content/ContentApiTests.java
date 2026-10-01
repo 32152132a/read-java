@@ -7,8 +7,11 @@ import static org.mockito.Mockito.*;
 import com.readenglish.auth.JwtTokenService;
 import com.readenglish.auth.UserProfile;
 import com.readenglish.common.api.ApiException;
+import jakarta.validation.Validator;
 import java.net.URI;
 import java.net.http.*;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +39,7 @@ class ContentApiTests {
   @Autowired ContentJobs jobs;
   @Autowired JdbcTemplate db;
   @Autowired JwtTokenService tokens;
+  @Autowired Validator validator;
   @MockitoBean WordGenerator generator;
   String token, user;
 
@@ -71,22 +75,16 @@ class ContentApiTests {
 
   @Test
   void generationIsIdempotentAndContentChangesResetLibraryStudy() throws Exception {
-    var input =
-        mapper
-            .createObjectNode()
-            .put("name", "测试词库")
-            .put("wordsText", "computer, computer teacher");
+    var input = mapper.createObjectNode().put("name", "测试词库");
+    input.putArray("words").add("computer").add("teacher");
     var task = call(token, "POST", "/word-libraries/custom-jobs", input, 202);
     String job = task.path("id").asText();
     assertThat(task.path("items").size()).isEqualTo(2);
     assertThat(call(token, "POST", "/word-libraries/custom-jobs", input, 202).path("id"))
         .isEqualTo(task.path("id"));
-    call(
-        token,
-        "POST",
-        "/word-libraries/custom-jobs",
-        input.deepCopy().put("wordsText", "other"),
-        409);
+    var conflictingInput = input.deepCopy();
+    conflictingInput.withArray("words").removeAll().add("other");
+    call(token, "POST", "/word-libraries/custom-jobs", conflictingInput, 409);
     jobs.work();
     jobs.work();
     task = call(token, "GET", "/word-libraries/custom-jobs/" + job, null, 200);
@@ -174,6 +172,14 @@ class ContentApiTests {
   }
 
   @Test
+  void customJobCountsDuplicateArrayItemsTowardLimit() {
+    assertThat(validator.validate(new ContentJobs.Create("边界词库", Collections.nCopies(200, "word"))))
+        .isEmpty();
+    assertThat(validator.validate(new ContentJobs.Create("边界词库", Collections.nCopies(201, "word"))))
+        .isNotEmpty();
+  }
+
+  @Test
   void permissionsSeparateOwnersAndPublicEditors() throws Exception {
     String id = contents.generated(user, word("ownership"));
     var other =
@@ -218,7 +224,8 @@ class ContentApiTests {
     when(generator.generate("failure"))
         .thenThrow(new IllegalStateException("provider unavailable"));
     var task =
-        jobs.create(user, UUID.randomUUID().toString(), new ContentJobs.Create("重试词库", "failure"));
+        jobs.create(
+            user, UUID.randomUUID().toString(), new ContentJobs.Create("重试词库", List.of("failure")));
     String id = (String) task.get("id");
     jobs.work();
     assertThat(jobs.get(user, id).get("status")).isEqualTo("PARTIAL_FAILED");
@@ -277,7 +284,9 @@ class ContentApiTests {
     contents.save(user, entry, new ContentService.SaveRequest(1, edited));
     var job =
         jobs.create(
-            user, UUID.randomUUID().toString(), new ContentJobs.Create("复用词库", "capitalized"));
+            user,
+            UUID.randomUUID().toString(),
+            new ContentJobs.Create("复用词库", List.of("capitalized")));
     jobs.work();
     assertThat(jobs.get(user, (String) job.get("id")).get("status")).isEqualTo("SUCCEEDED");
     assertThat(

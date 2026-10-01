@@ -45,7 +45,7 @@ V8 把原 `content_revisions` 中每个词条的最新配置迁入 `content_entr
 | GET `/content?kind=WORD&q=` | 搜索可维护的当前内容，最多 100 条 |
 | GET `/content/{id}` | 读取当前配置 |
 | PUT `/content/{id}` | `{version, config}` 校验并保存当前配置；保存后立即生效 |
-| POST `/word-libraries/custom-jobs` | 创建批量生成任务，必需 `Idempotency-Key` |
+| POST `/word-libraries/custom-jobs` | 传入 `{name, words}` 创建批量生成任务；`words` 为 1–200 项数组，必需 `Idempotency-Key` |
 | GET `/word-libraries/custom-jobs` | 最近 30 个本人任务 |
 | GET `/word-libraries/custom-jobs/{id}` | 任务与逐词结果 |
 | POST `/word-libraries/custom-jobs/{id}/retry` | 重试失败项，每词最多 3 次 |
