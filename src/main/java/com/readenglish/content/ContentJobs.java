@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @EnableScheduling
 public class ContentJobs {
   private static final Logger log = LoggerFactory.getLogger(ContentJobs.class);
+  private static final int GENERATION_BATCH_SIZE = 5;
   private final JdbcTemplate db;
   private final ContentService contents;
   private final WordGenerator generator;
@@ -40,7 +41,7 @@ public class ContentJobs {
 
   public record Create(
       @NotBlank @Size(min = 2, max = 40) String name,
-      @NotEmpty @Size(max = 200) List<@NotBlank @Size(max = 120) String> words) {}
+      @NotEmpty(message = "单词列表不能为空") @Size(max = 200, message = "每次最多提交 200 个单词") List<@NotBlank @Size(max = 120) String> words) {}
 
   @Transactional
   public Map<String, Object> create(String user, String key, Create input) {
@@ -109,21 +110,33 @@ public class ContentJobs {
 
   public List<Map<String, Object>> list(String user) {
     return db.query(
-        "SELECT j.id,j.status,j.library_id AS `libraryId`,l.name FROM content_jobs j JOIN word_libraries l ON l.id=j.library_id WHERE j.user_id=? ORDER BY j.created_at DESC LIMIT 30",
+        summarySql() + " WHERE j.user_id=? ORDER BY j.created_at DESC LIMIT 30",
         (row, n) -> jobSummary(row),
         user);
   }
 
+  private String summarySql() {
+    return """
+        SELECT j.id,j.status,j.library_id AS `libraryId`,l.name,
+          (SELECT COUNT(*) FROM content_job_items i WHERE i.job_id=j.id) AS total,
+          (SELECT COUNT(*) FROM content_job_items i WHERE i.job_id=j.id AND i.status IN ('SUCCEEDED','FAILED')) AS completed,
+          (SELECT COUNT(*) FROM content_job_items i WHERE i.job_id=j.id AND i.status='SUCCEEDED') AS succeeded,
+          (SELECT COUNT(*) FROM content_job_items i WHERE i.job_id=j.id AND i.status='FAILED') AS failed
+        FROM content_jobs j JOIN word_libraries l ON l.id=j.library_id
+        """;
+  }
+
   private Map<String, Object> jobSummary(java.sql.ResultSet row) throws java.sql.SQLException {
-    return Map.of(
-        "id",
-        row.getString("id"),
-        "status",
-        row.getString("status"),
-        "libraryId",
-        row.getString("libraryId"),
-        "name",
-        row.getString("name"));
+    var result = new LinkedHashMap<String, Object>();
+    result.put("id", row.getString("id"));
+    result.put("status", row.getString("status"));
+    result.put("libraryId", row.getString("libraryId"));
+    result.put("name", row.getString("name"));
+    result.put("total", row.getInt("total"));
+    result.put("completed", row.getInt("completed"));
+    result.put("succeeded", row.getInt("succeeded"));
+    result.put("failed", row.getInt("failed"));
+    return result;
   }
 
   public record JobItem(
@@ -135,17 +148,11 @@ public class ContentJobs {
       int attempts) {}
 
   public Map<String, Object> get(String user, String id) {
-    Map<String, Object> job =
-        db
-            .query(
-                "SELECT j.id,j.status,j.library_id AS `libraryId`,l.name FROM content_jobs j JOIN word_libraries l ON l.id=j.library_id WHERE j.id=? AND j.user_id=?",
-                (row, n) -> jobSummary(row),
-                id,
-                user)
-            .stream()
-            .findFirst()
-            .orElseThrow(
-                () -> new ApiException(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "任务不存在"));
+    return find(user, id);
+  }
+
+  public Map<String, Object> details(String user, String id) {
+    Map<String, Object> job = find(user, id);
     var result = new LinkedHashMap<String, Object>(job);
     result.put(
         "items",
@@ -161,6 +168,15 @@ public class ContentJobs {
                     row.getInt("attempts")),
             id));
     return result;
+  }
+
+  private Map<String, Object> find(String user, String id) {
+    return db
+        .query(
+            summarySql() + " WHERE j.id=? AND j.user_id=?", (row, n) -> jobSummary(row), id, user)
+        .stream()
+        .findFirst()
+        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "任务不存在"));
   }
 
   @Transactional
@@ -185,32 +201,90 @@ public class ContentJobs {
         db.queryForList(
             "SELECT id FROM content_jobs WHERE status IN ('PENDING','PROCESSING')", String.class))
       refresh(id);
-    var pending =
+    var first =
         db.queryForList(
             "SELECT i.job_id,i.position,i.word,j.user_id FROM content_job_items i JOIN content_jobs j ON j.id=i.job_id WHERE i.status='PENDING' ORDER BY j.created_at,i.position LIMIT 1");
-    if (pending.isEmpty()) return;
-    var row = pending.getFirst();
-    String job = (String) row.get("job_id"), user = (String) row.get("user_id");
-    int position = ((Number) row.get("position")).intValue();
-    if (db.update(
-            "UPDATE content_job_items SET status='PROCESSING',attempts=attempts+1,started_at=CURRENT_TIMESTAMP WHERE job_id=? AND position=? AND status='PENDING'",
+    if (first.isEmpty()) return;
+    String job = (String) first.getFirst().get("job_id");
+    String user = (String) first.getFirst().get("user_id");
+    var rows =
+        db.queryForList(
+            "SELECT position,word FROM content_job_items WHERE job_id=? AND status='PENDING' ORDER BY position LIMIT ?",
             job,
-            position)
-        != 1) return;
+            GENERATION_BATCH_SIZE);
+    rows.removeIf(
+        row ->
+            db.update(
+                    "UPDATE content_job_items SET status='PROCESSING',attempts=attempts+1,started_at=CURRENT_TIMESTAMP WHERE job_id=? AND position=? AND status='PENDING'",
+                    job,
+                    ((Number) row.get("position")).intValue())
+                != 1);
+    if (rows.isEmpty()) return;
     db.update("UPDATE content_jobs SET status='PROCESSING' WHERE id=?", job);
-    String word = (String) row.get("word");
-    try {
+
+    var entriesByWord = new HashMap<String, String>();
+    var missingWords = new ArrayList<String>();
+    for (var row : rows) {
+      String word = (String) row.get("word");
+      if (entriesByWord.containsKey(word) || missingWords.contains(word)) continue;
       var existing =
           db.queryForList(
               "SELECT id FROM content_entries WHERE kind='WORD' AND scope_id=? AND LOWER(label)=?",
               String.class,
               user,
               word);
-      var config = existing.isEmpty() ? generator.generate(word) : null;
+      if (existing.isEmpty()) missingWords.add(word);
+      else entriesByWord.put(word, existing.getFirst());
+    }
+
+    var generatedByWord = new HashMap<String, WordGenerator.Result>();
+    if (!missingWords.isEmpty()) {
+      try {
+        for (var result : generator.generate(missingWords))
+          generatedByWord.put(result.word(), result);
+      } catch (Exception ex) {
+        log.warn("Content generation batch failed for words {}: {}", missingWords, diagnostic(ex));
+      }
+    }
+
+    for (var row : rows)
+      finishItem(
+          user,
+          job,
+          ((Number) row.get("position")).intValue(),
+          (String) row.get("word"),
+          entriesByWord,
+          generatedByWord);
+    refresh(job);
+  }
+
+  private void finishItem(
+      String user,
+      String job,
+      int position,
+      String word,
+      Map<String, String> entriesByWord,
+      Map<String, WordGenerator.Result> generatedByWord) {
+    try {
+      String existing = entriesByWord.get(word);
+      var generated = generatedByWord.get(word);
+      if (existing == null && (generated == null || generated.config() == null)) {
+        String message =
+            generated != null && generated.error() != null ? generated.error() : "生成失败或数据不完整，请重试";
+        db.update(
+            "UPDATE content_job_items SET status='FAILED',error_message=? WHERE job_id=? AND position=?",
+            message,
+            job,
+            position);
+        return;
+      }
       transaction.executeWithoutResult(
           status -> {
-            String entry =
-                existing.isEmpty() ? contents.generated(user, config) : existing.getFirst();
+            String entry = existing;
+            if (entry == null) {
+              entry = contents.generated(user, generated.config());
+              entriesByWord.put(word, entry);
+            }
             db.update(
                 "UPDATE content_job_items SET status='SUCCEEDED',entry_id=?,error_message=NULL WHERE job_id=? AND position=?",
                 entry,
@@ -225,7 +299,6 @@ public class ContentJobs {
           job,
           position);
     }
-    refresh(job);
   }
 
   private String diagnostic(Exception exception) {

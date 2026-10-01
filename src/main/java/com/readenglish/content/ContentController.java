@@ -70,6 +70,11 @@ public class ContentController {
     return jobs.get(jwt.getSubject(), id);
   }
 
+  @GetMapping("/word-libraries/custom-jobs/{id}/items")
+  public Object jobItems(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+    return jobs.details(jwt.getSubject(), id);
+  }
+
   @PostMapping("/word-libraries/custom-jobs/{id}/retry")
   public Object retry(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
     return jobs.retry(jwt.getSubject(), id);

@@ -46,9 +46,11 @@ class DeepSeekWordGeneratorTests {
               .put("letters", "computer")
               .put("tip", "静音片段测试");
       silentPart.putArray("segments");
-      choice.putObject("message").put("content", generatedConfig.toString());
+      var generatedBatch = mapper.createObjectNode();
+      generatedBatch.putArray("items").add(generatedConfig);
+      choice.putObject("message").put("content", generatedBatch.toString());
       response.set(result.toString());
-      var generated = generator.generate("computer");
+      var generated = generator.generate(java.util.List.of("computer")).getFirst().config();
       assertThat(generated.path("word").asText()).isEqualTo("computer");
       assertThat(generated.path("ipa").asText()).isEqualTo("test");
       assertThat(generated.path("ipaSegments").get(0).path("text").asText()).isEqualTo("test");
@@ -56,13 +58,21 @@ class DeepSeekWordGeneratorTests {
       assertThat(body.path("stream").asBoolean()).isFalse();
       assertThat(body.path("thinking").path("type").asText()).isEqualTo("disabled");
       assertThat(body.path("response_format").path("type").asText()).isEqualTo("json_object");
+      assertThat(
+              mapper
+                  .readTree(body.path("messages").get(1).path("content").asText())
+                  .get(0)
+                  .asText())
+          .isEqualTo("computer");
       choice.put("finish_reason", "length");
       response.set(result.toString());
-      assertThatThrownBy(() -> generator.generate("computer")).isInstanceOf(ApiException.class);
+      assertThatThrownBy(() -> generator.generate(java.util.List.of("computer")))
+          .isInstanceOf(ApiException.class);
       choice.put("finish_reason", "stop");
       choice.withObject("message").put("content", "{}");
       response.set(result.toString());
-      assertThatThrownBy(() -> generator.generate("computer")).isInstanceOf(ApiException.class);
+      assertThatThrownBy(() -> generator.generate(java.util.List.of("computer")))
+          .isInstanceOf(ApiException.class);
     } finally {
       server.stop(0);
     }

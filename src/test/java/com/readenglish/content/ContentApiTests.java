@@ -1,7 +1,7 @@
 package com.readenglish.content;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 import com.readenglish.auth.JwtTokenService;
@@ -55,7 +55,14 @@ class ContentApiTests {
     token = login.path("accessToken").asText();
     user = login.path("user").path("id").asText();
     when(generator.available()).thenReturn(true);
-    when(generator.generate(anyString())).thenAnswer(invocation -> word(invocation.getArgument(0)));
+    when(generator.generate(anyList()))
+        .thenAnswer(
+            invocation -> {
+              List<String> words = invocation.getArgument(0);
+              return words.stream()
+                  .map(value -> WordGenerator.Result.success(value, word(value)))
+                  .toList();
+            });
   }
 
   ObjectNode word(String word) {
@@ -79,7 +86,8 @@ class ContentApiTests {
     input.putArray("words").add("computer").add("teacher");
     var task = call(token, "POST", "/word-libraries/custom-jobs", input, 202);
     String job = task.path("id").asText();
-    assertThat(task.path("items").size()).isEqualTo(2);
+    assertThat(task.path("total").asInt()).isEqualTo(2);
+    assertThat(task.path("completed").asInt()).isZero();
     assertThat(call(token, "POST", "/word-libraries/custom-jobs", input, 202).path("id"))
         .isEqualTo(task.path("id"));
     var conflictingInput = input.deepCopy();
@@ -87,8 +95,9 @@ class ContentApiTests {
     call(token, "POST", "/word-libraries/custom-jobs", conflictingInput, 409);
     jobs.work();
     jobs.work();
-    task = call(token, "GET", "/word-libraries/custom-jobs/" + job, null, 200);
+    task = call(token, "GET", "/word-libraries/custom-jobs/" + job + "/items", null, 200);
     assertThat(task.path("status").asText()).isEqualTo("SUCCEEDED");
+    assertThat(task.path("completed").asInt()).isEqualTo(2);
     String entry = task.path("items").get(0).path("entryId").asText();
     assertThat(entry).isNotBlank();
     String library = task.path("libraryId").asText();
@@ -168,7 +177,7 @@ class ContentApiTests {
                 user,
                 library))
         .isEqualTo(1);
-    verify(generator, times(2)).generate(anyString());
+    verify(generator, times(1)).generate(List.of("computer", "teacher"));
   }
 
   @Test
@@ -177,6 +186,23 @@ class ContentApiTests {
         .isEmpty();
     assertThat(validator.validate(new ContentJobs.Create("边界词库", Collections.nCopies(201, "word"))))
         .isNotEmpty();
+  }
+
+  @Test
+  void generationUsesAtMostFiveNewWordsPerProviderRequest() {
+    var firstBatch = List.of("alpha", "bravo", "charlie", "delta", "echo");
+    var allWords = new java.util.ArrayList<>(firstBatch);
+    allWords.add("foxtrot");
+    var task =
+        jobs.create(user, UUID.randomUUID().toString(), new ContentJobs.Create("批次词库", allWords));
+
+    jobs.work();
+    assertThat(jobs.get(user, (String) task.get("id")).get("completed")).isEqualTo(5);
+    jobs.work();
+    assertThat(jobs.get(user, (String) task.get("id")).get("completed")).isEqualTo(6);
+
+    verify(generator).generate(firstBatch);
+    verify(generator).generate(List.of("foxtrot"));
   }
 
   @Test
@@ -221,7 +247,7 @@ class ContentApiTests {
 
   @Test
   void failureCanRetryWithoutReplacingHumanContent() {
-    when(generator.generate("failure"))
+    when(generator.generate(List.of("failure")))
         .thenThrow(new IllegalStateException("provider unavailable"));
     var task =
         jobs.create(
@@ -234,7 +260,7 @@ class ContentApiTests {
     jobs.work();
     assertThat(jobs.get(user, id).get("status")).isEqualTo("SUCCEEDED");
     assertThat(contents.get(entry).version()).isEqualTo(1);
-    verify(generator, times(1)).generate("failure");
+    verify(generator, times(1)).generate(List.of("failure"));
   }
 
   @Test
@@ -302,7 +328,7 @@ class ContentApiTests {
                 job.get("libraryId")))
         .isEqualTo(1);
     assertThat(contents.get(entry).version()).isEqualTo(2);
-    verify(generator, never()).generate(anyString());
+    verify(generator, never()).generate(anyList());
   }
 
   @Test

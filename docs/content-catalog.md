@@ -3,7 +3,7 @@
 ## 使用流程
 
 1. 前端「专业词库 → 添加词库 → AI 定制词库」输入名称和 1–200 个单词。
-2. 后端建立持久化任务并逐词调用 DeepSeek；前端轮询进度，离开页面不会取消任务。
+2. 后端建立持久化任务，每批最多 5 个新单词调用一次 DeepSeek；前端只轮询汇总进度，离开页面不会取消任务。
 3. 每个结果先经过服务端结构校验。校验成功后立即写入当前配置、创建单词并关联词库，无需逐条发布。
 4. 用户添加词库后即可学习。发现个别内容有误时，从生成结果或「我的 → 内容维护」进入编辑，保存后立即用于新练习。
 5. 单词配置或词库成员发生变化时，该词库的答题记录和学习进度会清空；下次进入时读取最新内容。
@@ -47,13 +47,14 @@ V8 把原 `content_revisions` 中每个词条的最新配置迁入 `content_entr
 | PUT `/content/{id}` | `{version, config}` 校验并保存当前配置；保存后立即生效 |
 | POST `/word-libraries/custom-jobs` | 传入 `{name, words}` 创建批量生成任务；`words` 为 1–200 项数组，必需 `Idempotency-Key` |
 | GET `/word-libraries/custom-jobs` | 最近 30 个本人任务 |
-| GET `/word-libraries/custom-jobs/{id}` | 任务与逐词结果 |
+| GET `/word-libraries/custom-jobs/{id}` | 任务汇总进度：总数、已完成、成功、失败 |
+| GET `/word-libraries/custom-jobs/{id}/items` | 任务汇总与逐词结果，任务结束或查看详情时读取 |
 | POST `/word-libraries/custom-jobs/{id}/retry` | 重试失败项，每词最多 3 次 |
 | POST `/word-libraries/{id}/study` | 读取当前内容并开始词库学习 |
 | POST `/content-study/{id}/answers` | 提交题目答案 |
 | POST `/content-study/{id}/words/{wordId}/complete` | 完成一个单词并记录进度 |
 
-生成任务状态仍为 `PENDING / PROCESSING / SUCCEEDED / FAILED`，它表示后台任务进度，不是内容草稿状态。同一用户相同单词会复用当前人工内容，不会再次调用 AI 覆盖。
+生成任务状态为 `PENDING / PROCESSING / SUCCEEDED / PARTIAL_FAILED`，它表示后台任务进度，不是内容草稿状态。同一用户相同单词会复用当前人工内容，不会再次调用 AI 覆盖。一次最多把 5 个缺失单词放进同一个非流式请求，各结果仍独立校验和保存；某一项不合格只标记该项失败。
 
 ## 私有配置
 
