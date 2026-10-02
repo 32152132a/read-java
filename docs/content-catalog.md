@@ -20,11 +20,10 @@
 | `content_jobs` | 批量生成任务，关联用户和个人词库，保存幂等键和输入摘要 |
 | `content_job_items` | 逐词生成状态、失败原因、尝试次数和内容 ID |
 | `content_library_answers` | 按用户和词库记录当前题目回答，由后端判分；词库变化时清空 |
-| `learning_session_snapshots` | 仅供普通课程会话保持页面稳定，不参与词库学习 |
 
-V8 把原 `content_revisions` 中每个词条的最新配置迁入 `content_entries.config_json`，随后删除历史版本表及 `published_version`。V9 删除词库内容快照和旧答题表；V10 删除不需要的词库内容版本号。
+V8 把原 `content_revisions` 中每个词条的最新配置迁入 `content_entries.config_json`，随后删除历史版本表及 `published_version`。V9 删除词库内容快照和旧答题表；V10 删除不需要的词库内容版本号；V14 删除普通课程会话快照。
 
-查询学习内容时优先使用当前用户配置，再使用公共配置。前端接收完整对象，无需参与数据库关联。
+查询学习内容时优先使用当前用户配置，再使用公共配置。普通课程每次进入都会从当前 `learning_units`、`phonemes`、`words` 和内容配置投影生成页面内容；前端接收完整对象，无需参与数据库关联。
 
 ## 配置结构
 

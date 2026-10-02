@@ -29,7 +29,7 @@
 
 ## 数据库与配置
 
-V4 建立内容任务和学习数据表；V8 将最新配置迁入 `content_entries.config_json`，删除 `content_revisions` 和 `published_version`；V9 删除词库内容快照，V10 删除词库内容版本号。词库学习始终读取当前配置，`learning_session_snapshots` 仅服务普通课程会话。
+V4 建立内容任务和学习数据表；V8 将最新配置迁入 `content_entries.config_json`，删除 `content_revisions` 和 `published_version`；V9 删除词库内容快照，V10 删除词库内容版本号；V14 删除普通课程会话快照。词库学习和普通课程会话都读取当前配置。
 
 私有环境变量：`DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`CONTENT_ADMIN_USER_IDS`。可放在已有 `.local/mysql.env`，由本地启动脚本加载。不得输出真实值或提交 Git。
 

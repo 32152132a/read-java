@@ -14,6 +14,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class IntegrationRegressionTests {
@@ -120,6 +121,62 @@ class IntegrationRegressionTests {
     }
   }
 
+  @Test
+  void reopenedSessionProjectsCurrentPhonemeContentWithoutSnapshot() throws Exception {
+    try (var client = HttpClient.newHttpClient()) {
+      String token = login(client);
+      JsonNode flow = call(client, token, "GET", "/learning-flow", null);
+      String nodeId = flow.path("nodes").get(0).path("id").stringValue();
+      String path = "/learning-stages/phoneme/session?flowNodeId=" + nodeId;
+      JsonNode session = call(client, token, "GET", path, null);
+      JsonNode phonemeUnit = firstPhonemeDetail(session);
+      String phonemeId = phonemeUnit.path("content").path("phonemeId").asText();
+      String marker = "updated phoneme detail " + UUID.randomUUID();
+      String originalEntryConfig =
+          jdbc.queryForObject(
+              "select config_json from content_entries where kind='PHONEME' and source_id=? and scope_id=''",
+              String.class,
+              phonemeId);
+      String originalDetail =
+          jdbc.queryForObject(
+              "select detail_json from phonemes where id=?", String.class, phonemeId);
+
+      try {
+        var updated =
+            (ObjectNode)
+                mapper.readTree(originalEntryConfig == null ? originalDetail : originalEntryConfig);
+        updated.put("description", marker);
+        var question = updated.withArray("questions").addObject();
+        question
+            .put("id", "snapshot_regression")
+            .put("type", "CHOICE")
+            .put("prompt", "hidden answer regression")
+            .put("correctOptionId", "a")
+            .put("explanation", "this should not leak");
+        question.putArray("options").addObject().put("id", "a").put("label", "A");
+        question.withArray("options").addObject().put("id", "b").put("label", "B");
+        jdbc.update(
+            "update content_entries set config_json=? where kind='PHONEME' and source_id=? and scope_id=''",
+            updated.toString(),
+            phonemeId);
+
+        JsonNode reopened = call(client, token, "GET", path, null);
+        JsonNode currentPhoneme = firstPhonemeDetail(reopened).path("content");
+        assertThat(currentPhoneme.path("description").asText()).isEqualTo(marker);
+        assertThat(currentPhoneme.path("teachingConfig").path("description").asText())
+            .isEqualTo(marker);
+        assertThat(currentPhoneme.toString()).doesNotContain("correctOptionId");
+        assertThat(currentPhoneme.toString()).doesNotContain("this should not leak");
+      } finally {
+        jdbc.update(
+            "update content_entries set config_json=? where kind='PHONEME' and source_id=? and scope_id=''",
+            originalEntryConfig,
+            phonemeId);
+        jdbc.update("update phonemes set detail_json=? where id=?", originalDetail, phonemeId);
+      }
+    }
+  }
+
   private String login(HttpClient client) throws Exception {
     return call(
             client,
@@ -163,5 +220,14 @@ class IntegrationRegressionTests {
 
   private URI uri(String path) {
     return URI.create("http://127.0.0.1:" + port + "/api/v1" + path);
+  }
+
+  private JsonNode firstPhonemeDetail(JsonNode session) {
+    for (JsonNode unit : session.path("units")) {
+      if (unit.path("contentType").asText().equals("PHONEME_DETAIL")) {
+        return unit;
+      }
+    }
+    throw new AssertionError("phoneme session should include a PHONEME_DETAIL unit");
   }
 }

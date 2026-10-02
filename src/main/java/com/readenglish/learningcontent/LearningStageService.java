@@ -138,11 +138,10 @@ public class LearningStageService {
                         unit.getContentType(),
                         readContent(unit.getContentJson())))
             .toList();
-    var snapshot =
-        projection.snapshot(
-            session.getId(), session.getUserId(), objectMapper.valueToTree(unitResponses));
+    var projected =
+        projection.project(session.getUserId(), objectMapper.valueToTree(unitResponses));
     unitResponses =
-        java.util.stream.StreamSupport.stream(snapshot.spliterator(), false)
+        java.util.stream.StreamSupport.stream(projected.spliterator(), false)
             .map(item -> objectMapper.treeToValue(item, LearningUnitResponse.class))
             .toList();
     return new LearningSessionResponse(

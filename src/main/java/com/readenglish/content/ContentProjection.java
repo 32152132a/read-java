@@ -4,7 +4,6 @@ import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 @Service
@@ -12,27 +11,14 @@ public class ContentProjection {
   private final ContentService contents;
   private final ContentConfig configs;
   private final JdbcTemplate db;
-  private final ObjectMapper mapper;
 
-  public ContentProjection(
-      ContentService contents, ContentConfig configs, JdbcTemplate db, ObjectMapper mapper) {
+  public ContentProjection(ContentService contents, ContentConfig configs, JdbcTemplate db) {
     this.contents = contents;
     this.configs = configs;
     this.db = db;
-    this.mapper = mapper;
   }
 
-  public JsonNode snapshot(String session, String user, JsonNode units) {
-    // 锁住会话后首次保存配置快照，同一会话后续读取始终保持相同版本。
-    db.queryForObject(
-        "SELECT id FROM learning_sessions WHERE id=? FOR UPDATE", String.class, session);
-    List<String> old =
-        db.queryForList(
-            "SELECT content_json FROM learning_session_snapshots WHERE id=? AND user_id=?",
-            String.class,
-            session,
-            user);
-    if (!old.isEmpty()) return configs.publicView(mapper.readTree(old.getFirst()));
+  public JsonNode project(String user, JsonNode units) {
     for (JsonNode unit : units) {
       ObjectNode content = (ObjectNode) unit.path("content");
       String word = content.path("wordId").asText();
@@ -89,11 +75,6 @@ public class ContentProjection {
           }
         }
     }
-    db.update(
-        "INSERT INTO learning_session_snapshots(id,user_id,content_json) VALUES(?,?,?)",
-        session,
-        user,
-        units.toString());
     return configs.publicView(units);
   }
 }

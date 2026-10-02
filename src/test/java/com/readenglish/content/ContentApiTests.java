@@ -346,7 +346,7 @@ class ContentApiTests {
   }
 
   @Test
-  void phonemeSavingUpdatesNewLessonsButPreservesOpenedSession() throws Exception {
+  void phonemeSavingUpdatesReopenedSessionProjection() throws Exception {
     String admin =
         tokens
             .issueFor(new UserProfile("content-admin", "管理员", null, "US"), "test", false)
@@ -355,7 +355,7 @@ class ContentApiTests {
     String sessionPath =
         "/learning-stages/phoneme/session?flowNodeId="
             + flow.path("nodes").get(0).path("id").asText();
-    var original = call(token, "GET", sessionPath, null, 200);
+    call(token, "GET", sessionPath, null, 200);
     String entry = "content_p_1";
     var detail = call(admin, "GET", "/content/" + entry, null, 200);
     var config = (ObjectNode) detail.path("config").deepCopy();
@@ -370,8 +370,9 @@ class ContentApiTests {
             .put("version", detail.path("version").asInt())
             .set("config", config),
         200);
-    assertThat(call(token, "GET", sessionPath, null, 200).path("units"))
-        .isEqualTo(original.path("units"));
+    var reopened = call(token, "GET", sessionPath, null, 200);
+    assertThat(reopened.path("units").get(0).path("content").path("ipa").asText())
+        .isEqualTo("/ɪˑ/");
     var other =
         call(
                 "",
