@@ -189,6 +189,16 @@ class ContentApiTests {
   }
 
   @Test
+  void customJobExplainsUnsupportedWordCharacters() throws Exception {
+    var input = mapper.createObjectNode().put("name", "存储");
+    input.putArray("words").add("啊啊").add("config");
+
+    var response = callResponse(token, "POST", "/word-libraries/custom-jobs", input, 400);
+
+    assertThat(response.path("message").asText()).isEqualTo("单词格式无效：啊啊");
+  }
+
+  @Test
   void generationUsesAtMostFiveNewWordsPerProviderRequest() {
     var firstBatch = List.of("alpha", "bravo", "charlie", "delta", "echo");
     var allWords = new java.util.ArrayList<>(firstBatch);
@@ -393,6 +403,11 @@ class ContentApiTests {
 
   JsonNode call(String token, String method, String path, JsonNode body, int expected)
       throws Exception {
+    return callResponse(token, method, path, body, expected).path("data");
+  }
+
+  JsonNode callResponse(String token, String method, String path, JsonNode body, int expected)
+      throws Exception {
     try (var client = HttpClient.newHttpClient()) {
       var request =
           HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1" + path))
@@ -410,7 +425,7 @@ class ContentApiTests {
                   .build(),
               HttpResponse.BodyHandlers.ofString());
       assertThat(response.statusCode()).as(response.body()).isEqualTo(expected);
-      return mapper.readTree(response.body()).path("data");
+      return mapper.readTree(response.body());
     }
   }
 }
