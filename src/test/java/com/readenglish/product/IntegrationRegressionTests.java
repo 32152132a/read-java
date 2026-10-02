@@ -75,12 +75,21 @@ class IntegrationRegressionTests {
   @Test
   void homeAndReopenedSessionUseSavedPosition() throws Exception {
     String unitId = "integration_test_second_phoneme";
+    Integer unitIndex =
+        jdbc.queryForObject(
+            "select count(*) from learning_units where template_code = 'phoneme' and enabled = true",
+            Integer.class);
+    Integer sortOrder =
+        jdbc.queryForObject(
+            "select coalesce(max(sort_order), 0) + 1 from learning_units where template_code = 'phoneme'",
+            Integer.class);
     jdbc.update(
         """
         insert into learning_units (id, template_code, content_type, title, content_json, sort_order, enabled)
-        values (?, 'phoneme', 'PHONEME_DETAIL', 'second', '{}', 2, true)
+        values (?, 'phoneme', 'PHONEME_DETAIL', 'second', '{}', ?, true)
         """,
-        unitId);
+        unitId,
+        sortOrder);
     try (var client = HttpClient.newHttpClient()) {
       String token = login(client);
       JsonNode flow = call(client, token, "GET", "/learning-flow", null);
@@ -92,15 +101,15 @@ class IntegrationRegressionTests {
           token,
           "PUT",
           "/learning-stages/sessions/" + session.path("sessionId").stringValue() + "/position",
-          "{\"unitId\":\"" + unitId + "\",\"unitIndex\":1}");
+          "{\"unitId\":\"" + unitId + "\",\"unitIndex\":" + unitIndex + "}");
       assertThat(
               call(client, token, "GET", "/home", null)
                   .path("todayTask")
                   .path("current")
                   .intValue())
-          .isEqualTo(2);
+          .isEqualTo(unitIndex + 1);
       assertThat(call(client, token, "GET", path, null).path("currentUnitIndex").intValue())
-          .isEqualTo(1);
+          .isEqualTo(unitIndex);
       assertThat(
               call(client, token, "GET", "/learning-flow", null)
                   .path("currentNodeIndex")
