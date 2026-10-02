@@ -165,6 +165,8 @@ class ProductApiTests {
       assertThat(added.path("addedLibraryIds").size()).isEqualTo(1);
       assertThat(repeatedAdd.path("addedLibraryIds").isEmpty()).isTrue();
       assertThat(words.path("items").size()).isEqualTo(1);
+      assertThat(words.path("items").get(0).path("contentId").isTextual()).isTrue();
+      assertThat(words.path("items").get(0).path("editable").booleanValue()).isFalse();
 
       HttpResponse<String> removeBase =
           client.send(

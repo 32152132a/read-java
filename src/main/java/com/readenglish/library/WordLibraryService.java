@@ -167,7 +167,7 @@ public class WordLibraryService {
             .stream()
             .collect(Collectors.toMap(WordEntity::getId, Function.identity()));
     var configurations =
-        contents.publicWords(
+        contents.publicWordViews(
             userId, pageItems.stream().map(WordLibraryItemEntity::getWordId).toList());
     List<LibraryWord> items =
         pageItems.stream()
@@ -206,10 +206,11 @@ public class WordLibraryService {
       String libraryId,
       WordLibraryItemEntity item,
       WordEntity word,
-      tools.jackson.databind.JsonNode config) {
+      com.readenglish.content.ContentService.WordView view) {
     boolean learned =
         progressRepository.existsByIdUserIdAndIdLibraryIdAndIdWordIdAndStatus(
             userId, libraryId, word.getId(), "COMPLETED");
+    var config = view.config();
     return new LibraryWord(
         word.getId(),
         word.getDisplayWord(),
@@ -218,6 +219,8 @@ public class WordLibraryService {
         config.path("audio").path("url").asText(""),
         item.getSortOrder(),
         learned,
+        view.contentId(),
+        view.editable(),
         config);
   }
 

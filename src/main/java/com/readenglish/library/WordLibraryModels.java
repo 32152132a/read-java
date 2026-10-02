@@ -44,6 +44,8 @@ public final class WordLibraryModels {
       String audioUrl,
       int order,
       boolean learned,
+      String contentId,
+      boolean editable,
       tools.jackson.databind.JsonNode teachingConfig) {}
 
   public record LibraryWordPage(List<LibraryWord> items, String nextCursor, boolean hasMore) {}

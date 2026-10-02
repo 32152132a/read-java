@@ -107,6 +107,10 @@ class ContentApiTests {
                 Integer.class,
                 library))
         .isEqualTo(2);
+    var libraryWords =
+        call(token, "GET", "/word-libraries/" + library + "/words?size=20", null, 200);
+    assertThat(libraryWords.path("items").get(0).path("contentId").asText()).isEqualTo(entry);
+    assertThat(libraryWords.path("items").get(0).path("editable").asBoolean()).isTrue();
     var detail = call(token, "GET", "/content/" + entry, null, 200);
     assertThat(detail.has("publishedVersion")).isFalse();
     call(

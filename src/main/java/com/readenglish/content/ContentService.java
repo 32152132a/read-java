@@ -40,6 +40,8 @@ public class ContentService {
 
   public record Detail(String id, String kind, String label, int version, JsonNode config) {}
 
+  public record WordView(String contentId, boolean editable, JsonNode config) {}
+
   public record SaveRequest(int version, JsonNode config) {}
 
   public List<Entry> list(String user, String kind, String query) {
@@ -353,14 +355,20 @@ public class ContentService {
     return configs.publicView(c);
   }
 
-  public Map<String, JsonNode> publicWords(String user, List<String> ids) {
-    Map<String, JsonNode> result = new HashMap<>();
-    wordConfigs(user, ids).forEach((id, config) -> result.put(id, configs.publicView(config)));
+  public Map<String, WordView> publicWordViews(String user, List<String> ids) {
+    Map<String, WordView> result = new LinkedHashMap<>();
+    wordViews(user, ids)
+        .forEach(
+            (id, view) ->
+                result.put(
+                    id,
+                    new WordView(
+                        view.contentId(), view.editable(), configs.publicView(view.config()))));
     return result;
   }
 
-  private Map<String, ObjectNode> wordConfigs(String user, List<String> ids) {
-    Map<String, ObjectNode> result = new LinkedHashMap<>();
+  private Map<String, WordView> wordViews(String user, List<String> ids) {
+    Map<String, WordView> result = new LinkedHashMap<>();
     if (ids.isEmpty()) return result;
     String placeholders = String.join(",", Collections.nCopies(ids.size(), "?"));
     List<Object> parameters = new ArrayList<>();
@@ -369,7 +377,8 @@ public class ContentService {
     // 一次关联公共/个人当前配置，前端只接收完整对象。
     db.query(
         """
-      SELECT w.*, COALESCE(pe.config_json,ge.config_json) AS config_json
+      SELECT w.*, COALESCE(pe.config_json,ge.config_json) AS config_json,
+        pe.id AS personal_content_id, ge.id AS global_content_id
       FROM words w
       LEFT JOIN content_entries pe ON pe.kind='WORD' AND pe.source_id=w.id AND pe.scope_id=?
       LEFT JOIN content_entries ge ON ge.kind='WORD' AND ge.source_id=w.id AND ge.scope_id=''
@@ -388,9 +397,19 @@ public class ContentService {
                           row.getString("meaning"),
                           row.getString("audio_url"))
                       : configs.read(json);
-              result.put(row.getString("id"), config);
+              String personalId = row.getString("personal_content_id");
+              String globalId = row.getString("global_content_id");
+              String contentId = personalId != null ? personalId : globalId;
+              boolean editable = personalId != null || (globalId != null && isAdmin(user));
+              result.put(row.getString("id"), new WordView(contentId, editable, config));
             },
         parameters.toArray());
+    return result;
+  }
+
+  private Map<String, ObjectNode> wordConfigs(String user, List<String> ids) {
+    Map<String, ObjectNode> result = new LinkedHashMap<>();
+    wordViews(user, ids).forEach((id, view) -> result.put(id, (ObjectNode) view.config()));
     return result;
   }
 
