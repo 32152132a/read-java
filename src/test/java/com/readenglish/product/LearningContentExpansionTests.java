@@ -137,7 +137,7 @@ class LearningContentExpansionTests {
               coveredPairs.put((Integer) row.get("sort_order"), pair);
             });
 
-    assertThat(coveredPairs).hasSize(16);
+    assertThat(coveredPairs).hasSize(24);
     assertThat(coveredPairs.get(1)).containsExactlyInAnyOrder("p_1", "p_2");
     assertThat(coveredPairs.get(2)).containsExactlyInAnyOrder("p_v_03", "p_v_04");
     assertThat(coveredPairs.get(3)).containsExactlyInAnyOrder("p_v_09", "p_v_08");
@@ -158,13 +158,13 @@ class LearningContentExpansionTests {
 
   @Test
   void expandedPracticeStagesReachFirstBatchTargets() {
-    assertThat(countUnits("phoneme-quiz")).isEqualTo(48);
-    assertThat(countUnits("syllable")).isEqualTo(24);
-    assertThat(countUnits("ipa-decoding")).isEqualTo(40);
-    assertThat(countUnits("word-decoding")).isEqualTo(40);
+    assertThat(countUnits("phoneme-quiz")).isEqualTo(96);
+    assertThat(countUnits("syllable")).isEqualTo(48);
+    assertThat(countUnits("ipa-decoding")).isEqualTo(100);
+    assertThat(countUnits("word-decoding")).isEqualTo(100);
 
-    assertThat(countQuestions("phoneme-quiz")).isEqualTo(48);
-    assertThat(countQuestions("syllable")).isEqualTo(24);
+    assertThat(countQuestions("phoneme-quiz")).isEqualTo(96);
+    assertThat(countQuestions("syllable")).isEqualTo(48);
 
     jdbc.queryForList(
             """
