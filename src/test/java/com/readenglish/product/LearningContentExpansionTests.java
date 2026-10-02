@@ -156,6 +156,62 @@ class LearningContentExpansionTests {
     assertThat(coveredPairs.get(16)).containsExactlyInAnyOrder("p_c_16", "p_c_17");
   }
 
+  @Test
+  void expandedPracticeStagesReachFirstBatchTargets() {
+    assertThat(countUnits("phoneme-quiz")).isEqualTo(48);
+    assertThat(countUnits("syllable")).isEqualTo(24);
+    assertThat(countUnits("ipa-decoding")).isEqualTo(40);
+    assertThat(countUnits("word-decoding")).isEqualTo(40);
+
+    assertThat(countQuestions("phoneme-quiz")).isEqualTo(48);
+    assertThat(countQuestions("syllable")).isEqualTo(24);
+
+    jdbc.queryForList(
+            """
+            select id, content_json
+            from learning_units
+            where template_code in ('phoneme-quiz', 'syllable', 'ipa-decoding', 'word-decoding')
+              and enabled = true
+            """)
+        .forEach(
+            row -> {
+              String id = (String) row.get("id");
+              JsonNode content = readJson((String) row.get("content_json"));
+
+              assertThat(content.size()).as("unit %s content should not be empty", id).isPositive();
+              if (id.startsWith("unit_quiz_")) {
+                assertThat(content.path("questionId").asText()).isNotBlank();
+                assertThat(content.path("options").size()).isEqualTo(4);
+              } else if (id.startsWith("unit_syllable_")) {
+                assertThat(content.path("segments").size()).isGreaterThanOrEqualTo(2);
+                assertThat(content.path("rules").size()).isGreaterThanOrEqualTo(2);
+                assertThat(content.path("question").path("options").size()).isEqualTo(4);
+              } else if (id.startsWith("unit_ipa_")) {
+                assertThat(content.path("hiddenWord").booleanValue()).isTrue();
+                assertThat(content.path("ipa").asText()).isNotBlank();
+                assertThat(content.path("syllables").size()).isGreaterThanOrEqualTo(2);
+              } else if (id.startsWith("unit_word_")) {
+                assertThat(content.path("word").asText()).isNotBlank();
+                assertThat(content.path("ipa").asText()).isNotBlank();
+                assertThat(content.path("parts").size()).isGreaterThanOrEqualTo(2);
+                assertThat(content.path("commonTips").size()).isGreaterThanOrEqualTo(1);
+                assertThat(content.path("specialTips").size()).isGreaterThanOrEqualTo(1);
+              }
+            });
+  }
+
+  private Integer countUnits(String templateCode) {
+    return jdbc.queryForObject(
+        "select count(*) from learning_units where template_code = ? and enabled = true",
+        Integer.class,
+        templateCode);
+  }
+
+  private Integer countQuestions(String templateCode) {
+    return jdbc.queryForObject(
+        "select count(*) from quiz_questions where template_code = ?", Integer.class, templateCode);
+  }
+
   private JsonNode readJson(String contentJson) {
     try {
       return objectMapper.readTree(contentJson);
