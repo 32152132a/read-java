@@ -28,7 +28,7 @@ class AuthApiTests {
           client.send(
               request("/api/v1/auth/dev/login")
                   .header("Content-Type", "application/json")
-                  .POST(HttpRequest.BodyPublishers.ofString("{\"nickname\":\"永庆\"}"))
+                  .POST(HttpRequest.BodyPublishers.ofString("{\"nickname\":\"学习者\"}"))
                   .build(),
               HttpResponse.BodyHandlers.ofString());
       JsonNode loginBody = objectMapper.readTree(loginResponse.body());
@@ -49,7 +49,7 @@ class AuthApiTests {
 
       assertThat(meResponse.statusCode()).isEqualTo(200);
       assertThat(meBody.path("data").path("id").stringValue()).isEqualTo("dev-user");
-      assertThat(meBody.path("data").path("nickname").stringValue()).isEqualTo("永庆");
+      assertThat(meBody.path("data").path("nickname").stringValue()).isEqualTo("学习者");
       assertThat(meBody.path("data").path("accentPreference").stringValue()).isIn("US", "GB");
     }
   }
@@ -95,7 +95,7 @@ class AuthApiTests {
           client.send(
               request("/api/v1/auth/dev/login")
                   .header("Content-Type", "application/json")
-                  .POST(HttpRequest.BodyPublishers.ofString("{\"nickname\":\"永庆\"}"))
+                  .POST(HttpRequest.BodyPublishers.ofString("{\"nickname\":\"学习者\"}"))
                   .build(),
               HttpResponse.BodyHandlers.ofString());
       String accessToken =
@@ -147,7 +147,7 @@ class AuthApiTests {
           client.send(request("/v3/api-docs").GET().build(), HttpResponse.BodyHandlers.ofString());
 
       assertThat(response.statusCode()).isEqualTo(200);
-      assertThat(response.body()).contains("永庆发音学习 API");
+      assertThat(response.body()).contains("Read English 发音学习 API");
     }
   }
 

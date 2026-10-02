@@ -34,7 +34,7 @@ class ProductApiTests {
       JsonNode flow = getData(client, token, "/api/v1/learning-flow");
       JsonNode libraries = getData(client, token, "/api/v1/word-libraries/mine");
       JsonNode phonemes = getData(client, token, "/api/v1/phonemes");
-      JsonNode mappedPhoneme = getData(client, token, "/api/v1/phonemes/p_1");
+      JsonNode formerlyMappedPhoneme = getData(client, token, "/api/v1/phonemes/p_1");
       JsonNode fallbackPhoneme = getData(client, token, "/api/v1/phonemes/p_2");
 
       assertThat(home.path("todayTask").path("templateCode").stringValue()).isEqualTo("phoneme");
@@ -46,7 +46,7 @@ class ProductApiTests {
       assertThat(phonemes.path("groups").get(1).path("items").size()).isEqualTo(28);
       assertThat(phonemes.path("groups").get(0).path("items").get(0).path("fallbackWord").asText())
           .isEqualTo("see");
-      assertThat(mappedPhoneme.path("audioUrl").asText()).endsWith("/p_1.mp3");
+      assertThat(formerlyMappedPhoneme.path("audioUrl").asText()).isEmpty();
       assertThat(fallbackPhoneme.path("audioUrl").asText()).isEmpty();
     }
   }
@@ -127,6 +127,7 @@ class ProductApiTests {
       JsonNode quizContent = session.path("units").get(0).path("content");
 
       assertThat(quizContent.toString()).doesNotContain("correctOptionId", "correctAnswer");
+      assertThat(quizContent.path("audioUrls").isEmpty()).isTrue();
 
       String sessionId = session.path("sessionId").stringValue();
       JsonNode answer =
@@ -185,7 +186,7 @@ class ProductApiTests {
             HttpRequest.newBuilder()
                 .uri(uri("/api/v1/auth/dev/login"))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{\"nickname\":\"永庆\"}"))
+                .POST(HttpRequest.BodyPublishers.ofString("{\"nickname\":\"学习者\"}"))
                 .build(),
             200);
     return data.path("accessToken").stringValue();

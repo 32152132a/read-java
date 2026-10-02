@@ -25,7 +25,7 @@
 本地默认启用 `local` profile，可调用 `POST /api/v1/auth/dev/login` 获取临时 JWT：
 
 ```json
-{ "nickname": "永庆" }
+{ "nickname": "学习者" }
 ```
 
 将响应中的 `accessToken` 作为 `Authorization: Bearer <token>` 请求私有接口。`refreshToken` 用于调用 `POST /api/v1/auth/refresh` 换取新令牌，退出时调用 `POST /api/v1/auth/logout` 撤销刷新令牌。

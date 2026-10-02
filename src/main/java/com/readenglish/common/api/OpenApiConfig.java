@@ -16,7 +16,7 @@ public class OpenApiConfig {
   @Bean
   OpenAPI readEnglishOpenApi() {
     return new OpenAPI()
-        .info(new Info().title("永庆发音学习 API").version("v1").description("英语发音学习后端接口"))
+        .info(new Info().title("Read English 发音学习 API").version("v1").description("英语发音学习后端接口"))
         .addSecurityItem(new SecurityRequirement().addList(BEARER_AUTH))
         .components(
             new Components()
