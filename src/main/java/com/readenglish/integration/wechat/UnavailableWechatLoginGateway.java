@@ -1,16 +1,12 @@
 package com.readenglish.integration.wechat;
 
 import com.readenglish.common.api.ApiException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(
-    prefix = "app.integration.wechat",
-    name = "fake-enabled",
-    havingValue = "false",
-    matchIfMissing = true)
+@ConditionalOnMissingBean(WechatLoginGateway.class)
 public class UnavailableWechatLoginGateway implements WechatLoginGateway {
 
   @Override
