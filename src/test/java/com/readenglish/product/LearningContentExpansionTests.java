@@ -108,7 +108,9 @@ class LearningContentExpansionTests {
                   .as("unit %s memoryTip", row.get("id"))
                   .isNotBlank();
               assertThat(phonemes.size()).as("unit %s phonemes", row.get("id")).isEqualTo(2);
-              assertThat(audioPairs.size()).as("unit %s audioPairs", row.get("id")).isGreaterThanOrEqualTo(2);
+              assertThat(audioPairs.size())
+                  .as("unit %s audioPairs", row.get("id"))
+                  .isGreaterThanOrEqualTo(2);
               assertThat(sortOrders.add((Integer) row.get("sort_order")))
                   .as("unit %s sort_order should be unique", row.get("id"))
                   .isTrue();
