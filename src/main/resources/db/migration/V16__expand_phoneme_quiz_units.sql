@@ -1,3 +1,4 @@
+DELETE FROM quiz_submissions WHERE question_id LIKE 'q_phoneme_%';
 DELETE FROM quiz_options WHERE question_id LIKE 'q_phoneme_%';
 DELETE FROM quiz_questions WHERE id LIKE 'q_phoneme_%';
 DELETE FROM learning_units WHERE id LIKE 'unit_quiz_%';
