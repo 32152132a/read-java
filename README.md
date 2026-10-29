@@ -1,5 +1,17 @@
 # read-java
 
+## 项目与作者：Read English Java 后端
+
+曲永庆（quyongqing）的 Read English 英语学习应用配套后端，使用 Java 21、Spring Boot、Spring Security、MySQL 与 Flyway，覆盖登录鉴权、课程学习流程、进度、答题和词库等业务接口，配套客户端见 [read-english](https://gitee.com/quyongqing/read-english)。
+
+作者通过 AI Coding 辅助开展 Java / Spring Boot 开发，负责需求拆解、接口联调、结果检查及部署维护；已实现、模拟能力和待开发功能以下文说明为准。
+
+曲永庆有 7 年前端开发经验，目前主要从事 AI 应用与 AI Agent 平台开发，具备前端、Node.js 后端和部署交付实践。
+
+- [作者介绍](https://quyongqing.cn/about.html)
+- [组件与项目文档](https://docs.quyongqing.cn/)
+- [Gitee 仓库](https://gitee.com/quyongqing/read-java)
+
 英语阅读项目的 Spring Boot 后端基础工程，使用 Java 21、Maven Wrapper、Spring MVC 和 Actuator。
 
 ## 在 IntelliJ IDEA 中打开
