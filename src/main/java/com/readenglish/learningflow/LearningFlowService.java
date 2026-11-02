@@ -29,13 +29,7 @@ public class LearningFlowService {
   private static final String COMPLETE_SCOPE = "learning-flow/current/complete";
   private static final List<String> DEFAULT_FLOW =
       List.of(
-          "phoneme",
-          "phoneme-compare",
-          "phoneme-quiz",
-          "syllable",
-          "ipa-decoding",
-          "word-decoding",
-          "evaluation");
+          "phoneme", "phoneme-compare", "syllable", "ipa-decoding", "word-decoding", "evaluation");
 
   private final FeatureTemplateRepository templateRepository;
   private final LearningFlowConfigRepository configRepository;
@@ -73,6 +67,7 @@ public class LearningFlowService {
   @Transactional(readOnly = true)
   public List<TemplateResponse> getTemplates() {
     return templateRepository.findByEnabledTrueOrderBySortOrderAsc().stream()
+        .filter(template -> isAvailable(template.getCode()))
         .map(LearningFlowService::toTemplateResponse)
         .toList();
   }
@@ -137,7 +132,7 @@ public class LearningFlowService {
 
     List<LearningFlowRunNodeEntity> runNodes =
         runNodeRepository.findByRunIdOrderByPositionAsc(run.getId());
-    int currentPosition = run.getCurrentPosition();
+    int currentPosition = nextAvailablePosition(runNodes, run.getCurrentPosition());
     if (currentPosition >= runNodes.size()) {
       throw new ApiException(HttpStatus.CONFLICT, "FLOW_NODE_MISMATCH", "当前学习流程已经完成");
     }
@@ -148,14 +143,23 @@ public class LearningFlowService {
     }
 
     currentNode.complete();
-    boolean flowCompleted = currentPosition + 1 >= runNodes.size();
-    run.advance(flowCompleted);
+    int nextPosition = nextAvailablePosition(runNodes, currentPosition + 1);
+    boolean flowCompleted = nextPosition >= runNodes.size();
+    while (run.getCurrentPosition() < nextPosition) {
+      run.advance(flowCompleted && run.getCurrentPosition() + 1 == nextPosition);
+    }
 
     NextNodeResponse nextNode =
-        flowCompleted ? null : toNextNode(runNodes.get(currentPosition + 1), templateMap());
+        flowCompleted ? null : toNextNode(runNodes.get(nextPosition), templateMap());
     var response =
         new CompleteFlowResponse(
-            currentNode.getSourceNodeId(), flowCompleted, currentPosition + 1, nextNode);
+            currentNode.getSourceNodeId(),
+            flowCompleted,
+            (int)
+                runNodes.subList(0, nextPosition).stream()
+                    .filter(node -> isAvailable(node.getTemplateCode()))
+                    .count(),
+            nextNode);
     storeResponse(userId, idempotencyKey, response);
     return response;
   }
@@ -194,17 +198,22 @@ public class LearningFlowService {
             .collect(
                 Collectors.toMap(LearningFlowRunNodeEntity::getSourceNodeId, Function.identity()));
     var templates = templateMap();
-    List<FlowNodeResponse> responses =
-        nodes.stream()
-            .map(node -> toFlowNode(node, runNodeBySource.get(node.getId()), templates))
-            .toList();
-    List<String> runNodeIds = runNodes.stream().map(LearningFlowRunNodeEntity::getId).toList();
+    List<FlowNodeResponse> responses = new ArrayList<>();
+    List<String> runNodeIds = new ArrayList<>();
+    int currentPosition = 0;
+    for (var node : nodes) {
+      if (!isAvailable(node.getTemplateCode())) continue;
+      var runNode = runNodeBySource.get(node.getId());
+      responses.add(toFlowNode(node, runNode, templates, responses.size()));
+      runNodeIds.add(runNode.getId());
+      if (node.getPosition() < run.getCurrentPosition()) currentPosition++;
+    }
     return new CurrentFlow(
         config.getId(),
         config.getVersion(),
         run.getId(),
-        run.getCurrentPosition(),
-        run.getStatus(),
+        currentPosition,
+        currentPosition >= responses.size() ? "COMPLETED" : run.getStatus(),
         responses,
         runNodeIds);
   }
@@ -212,10 +221,22 @@ public class LearningFlowService {
   private void validateTemplates(List<String> templateCodes) {
     var enabled = templateMap();
     for (String templateCode : templateCodes) {
-      if (!enabled.containsKey(templateCode)) {
+      if (!enabled.containsKey(templateCode) || !isAvailable(templateCode)) {
         throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "学习流程包含无效功能模板");
       }
     }
+  }
+
+  // 听音资源确认前仅隐藏该阶段，保留数据库中的模板、题目和历史节点。
+  private static boolean isAvailable(String templateCode) {
+    return !"phoneme-quiz".equals(templateCode);
+  }
+
+  private static int nextAvailablePosition(List<LearningFlowRunNodeEntity> nodes, int position) {
+    while (position < nodes.size() && !isAvailable(nodes.get(position).getTemplateCode())) {
+      position++;
+    }
+    return position;
   }
 
   private HashMap<String, FeatureTemplateEntity> templateMap() {
@@ -254,14 +275,15 @@ public class LearningFlowService {
   private static FlowNodeResponse toFlowNode(
       LearningFlowNodeEntity node,
       LearningFlowRunNodeEntity runNode,
-      HashMap<String, FeatureTemplateEntity> templates) {
+      HashMap<String, FeatureTemplateEntity> templates,
+      int position) {
     FeatureTemplateEntity template = templates.get(node.getTemplateCode());
     String status = runNode == null ? "NOT_STARTED" : runNode.getStatus();
     return new FlowNodeResponse(
         node.getId(),
         node.getTemplateCode(),
         template.getName(),
-        node.getPosition(),
+        position,
         status,
         "COMPLETED".equals(status),
         template.getRoute());

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -23,6 +24,7 @@ class ProductApiTests {
   @LocalServerPort private int port;
 
   @Autowired private ObjectMapper objectMapper;
+  @Autowired private JdbcTemplate jdbc;
 
   @Test
   @Order(1)
@@ -39,7 +41,9 @@ class ProductApiTests {
 
       assertThat(home.path("todayTask").path("templateCode").stringValue()).isEqualTo("phoneme");
       assertThat(flow.path("version").longValue()).isPositive();
-      assertThat(flow.path("nodes").size()).isEqualTo(7);
+      assertThat(flow.path("nodes").size()).isEqualTo(6);
+      assertThat(getData(client, token, "/api/v1/learning-flow/templates").toString())
+          .doesNotContain("phoneme-quiz");
       assertThat(libraries.path("items").get(0).path("id").stringValue()).isEqualTo("lib_base");
       assertThat(libraries.path("items").get(0).path("removable").booleanValue()).isFalse();
       assertThat(phonemes.path("groups").get(0).path("items").size()).isEqualTo(20);
@@ -101,7 +105,7 @@ class ProductApiTests {
 
   @Test
   @Order(3)
-  void quizHidesAnswerUntilSubmissionAndLibrariesAreProtected() throws Exception {
+  void existingListeningNodesAreHiddenAndSkippedWithoutDeletingData() throws Exception {
     try (var client = HttpClient.newHttpClient()) {
       String token = login(client);
       JsonNode current = getData(client, token, "/api/v1/learning-flow");
@@ -115,33 +119,73 @@ class ProductApiTests {
                       HttpRequest.BodyPublishers.ofString(
                           "{\"version\":"
                               + version
-                              + ",\"nodes\":[{\"templateCode\":\"phoneme-quiz\"}]}"))
+                              + ",\"nodes\":[{\"templateCode\":\"phoneme\"},"
+                              + "{\"templateCode\":\"phoneme\"},{\"templateCode\":\"syllable\"}]}"))
                   .build(),
               200);
       String flowNodeId = saved.path("nodes").get(0).path("id").stringValue();
-      JsonNode session =
-          getData(
-              client,
-              token,
-              "/api/v1/learning-stages/phoneme-quiz/session?flowNodeId=" + flowNodeId);
-      JsonNode quizContent = session.path("units").get(0).path("content");
-
-      assertThat(quizContent.toString()).doesNotContain("correctOptionId", "correctAnswer");
-      assertThat(quizContent.path("audioUrls").isEmpty()).isTrue();
-
-      String sessionId = session.path("sessionId").stringValue();
-      JsonNode answer =
+      String hiddenId = saved.path("nodes").get(1).path("id").stringValue();
+      String nextId = saved.path("nodes").get(2).path("id").stringValue();
+      jdbc.update(
+          "update learning_flow_nodes set template_code = 'phoneme-quiz' where id = ?", hiddenId);
+      jdbc.update(
+          "update learning_flow_run_nodes set template_code = 'phoneme-quiz' where source_node_id = ?",
+          hiddenId);
+      JsonNode visible = getData(client, token, "/api/v1/learning-flow");
+      assertThat(visible.path("nodes").size()).isEqualTo(2);
+      assertThat(visible.path("nodes").get(1).path("position").intValue()).isEqualTo(1);
+      JsonNode completed =
           sendData(
               client,
-              authorized(token, "/api/v1/quiz-questions/q_phoneme_1/answers")
+              authorized(token, "/api/v1/learning-flow/current/complete")
                   .header("Content-Type", "application/json")
+                  .header("Idempotency-Key", "skip-listening-" + flowNodeId)
                   .POST(
                       HttpRequest.BodyPublishers.ofString(
-                          "{\"selectedOptionId\":\"B\",\"sessionId\":\"" + sessionId + "\"}"))
+                          "{\"flowNodeId\":\"" + flowNodeId + "\"}"))
                   .build(),
               200);
-      assertThat(answer.path("correct").booleanValue()).isFalse();
-      assertThat(answer.path("correctOptionId").stringValue()).isEqualTo("A");
+      assertThat(completed.path("nextNode").path("id").stringValue()).isEqualTo(nextId);
+      assertThat(completed.path("currentNodeIndex").intValue()).isEqualTo(1);
+      // 模拟老用户恰好停在被隐藏的听音节点，读取和继续学习都应正常。
+      jdbc.update(
+          "update learning_flow_runs set current_position = 1 where config_id = ?",
+          saved.path("id").stringValue());
+      assertThat(
+              getData(client, token, "/api/v1/home")
+                  .path("todayTask")
+                  .path("flowNodeId")
+                  .stringValue())
+          .isEqualTo(nextId);
+      assertThat(
+              getData(
+                      client,
+                      token,
+                      "/api/v1/learning-stages/syllable/session?flowNodeId=" + nextId)
+                  .path("total")
+                  .intValue())
+          .isPositive();
+      JsonNode finish =
+          sendData(
+              client,
+              authorized(token, "/api/v1/learning-flow/current/complete")
+                  .header("Content-Type", "application/json")
+                  .header("Idempotency-Key", "skip-listening-" + nextId)
+                  .POST(HttpRequest.BodyPublishers.ofString("{\"flowNodeId\":\"" + nextId + "\"}"))
+                  .build(),
+              200);
+      assertThat(finish.path("flowCompleted").booleanValue()).isTrue();
+      assertThat(
+              jdbc.queryForObject(
+                  "select status from learning_flow_run_nodes where source_node_id = ?",
+                  String.class,
+                  hiddenId))
+          .isEqualTo("NOT_STARTED");
+      assertThat(
+              jdbc.queryForObject(
+                  "select count(*) from quiz_questions where template_code = 'phoneme-quiz'",
+                  Integer.class))
+          .isEqualTo(96);
 
       JsonNode added =
           sendData(
