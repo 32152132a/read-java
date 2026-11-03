@@ -17,15 +17,18 @@ public class ContentService {
   private final ContentConfig configs;
   private final ObjectMapper mapper;
   private final Set<String> admins;
+  private final PronunciationResources resources;
 
   public ContentService(
       JdbcTemplate db,
       ContentConfig configs,
       ObjectMapper mapper,
+      PronunciationResources resources,
       @Value("${app.content.admin-user-ids:}") String admins) {
     this.db = db;
     this.configs = configs;
     this.mapper = mapper;
+    this.resources = resources;
     this.admins =
         new HashSet<>(
             Arrays.stream(admins.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList());
@@ -38,7 +41,8 @@ public class ContentService {
   public record Entry(
       String id, String kind, String sourceId, String scope, String label, int version) {}
 
-  public record Detail(String id, String kind, String label, int version, JsonNode config) {}
+  public record Detail(
+      String id, String kind, String label, int version, boolean publicResource, JsonNode config) {}
 
   public record WordView(String contentId, boolean editable, JsonNode config) {}
 
@@ -82,147 +86,75 @@ public class ContentService {
 
   public Detail detail(String user, String id) {
     Entry e = editable(user, id);
-    return new Detail(e.id(), e.kind(), e.label(), e.version(), current(e));
+    return new Detail(e.id(), e.kind(), e.label(), e.version(), e.scope().isEmpty(), current(e));
   }
 
   private ObjectNode current(Entry e) {
-    List<String> stored =
+    if (e.kind().equals("PHONEME"))
+      return resources.phonemes(List.of(e.sourceId()), "GB").get(e.sourceId());
+    var stored =
         db.queryForList(
             "SELECT config_json FROM content_entries WHERE id=? AND config_json IS NOT NULL",
             String.class,
             e.id());
-    if (!stored.isEmpty()) return configs.read(stored.getFirst());
-    return base(e);
+    String accent =
+        stored.isEmpty() ? "US" : configs.read(stored.getFirst()).path("accent").asText("US");
+    ObjectNode base = resources.words(List.of(e.sourceId()), accent).get(e.sourceId());
+    return teaching(base, stored.isEmpty() ? null : stored.getFirst());
   }
 
-  private ObjectNode base(Entry e) {
-    if (e.kind().equals("WORD")) {
-      ObjectNode c =
-          db
-              .query(
-                  "SELECT * FROM words WHERE id=?",
-                  (r, n) ->
-                      configs.emptyWord(
-                          r.getString("display_word"),
-                          r.getString("ipa"),
-                          r.getString("meaning"),
-                          r.getString("audio_url")),
-                  e.sourceId())
-              .stream()
-              .findFirst()
-              .orElseThrow(() -> missing("单词不存在"));
-      // 把现有课程的拆读数据引入当前配置，不覆盖正在学习的会话快照。
-      for (String json :
-          db.queryForList(
-              "SELECT content_json FROM learning_units WHERE content_type IN ('IPA_DECODING','WORD_DECODING')",
-              String.class)) {
-        JsonNode old = mapper.readTree(json);
-        if (!old.path("wordId").asText().equals(e.sourceId())) continue;
-        if (old.has("tip")) c.put("tip", old.path("tip").asText());
-        if (old.has("parts"))
-          for (JsonNode p : old.path("parts")) {
-            ObjectNode part = c.withArray("parts").addObject();
-            part.put("letters", p.path("letters").asText()).put("tip", "");
-            part.putArray("segments")
-                .addObject()
-                .put("text", p.path("ipa").asText())
-                .put("tone", "primary")
-                .put("bold", false);
-          }
-        if (old.has("commonTips")) c.set("commonTips", old.path("commonTips"));
-        if (old.has("specialTips")) c.set("specialTips", old.path("specialTips"));
-      }
-      return c;
-    }
-    return db
-        .query(
-            "SELECT * FROM phonemes WHERE id=?",
-            (r, n) -> {
-              ObjectNode c = configs.read(r.getString("detail_json"));
-              c.put("schemaVersion", 1)
-                  .put("kind", "PHONEME")
-                  .put("accent", "BOTH")
-                  .put("ipa", r.getString("ipa"))
-                  .put("category", r.getString("category"))
-                  .put("group", r.getString("group_code"));
-              c.putArray("ipaSegments")
-                  .addObject()
-                  .put("text", r.getString("ipa"))
-                  .put("tone", "primary")
-                  .put("bold", false);
-              c.putArray("questions");
-              c.putObject("audio")
-                  .put("url", r.getString("audio_url") == null ? "" : r.getString("audio_url"))
-                  .put(
-                      "usUrl",
-                      r.getString("audio_us_url") == null ? "" : r.getString("audio_us_url"))
-                  .put(
-                      "gbUrl",
-                      r.getString("audio_gb_url") == null ? "" : r.getString("audio_gb_url"))
-                  .put("objectKey", "");
-              return c;
-            },
-            e.sourceId())
-        .stream()
-        .findFirst()
-        .orElseThrow(() -> missing("音标不存在"));
+  private ObjectNode teaching(ObjectNode base, String json) {
+    if (base == null) throw missing("单词不存在");
+    if (json == null) return base;
+    ObjectNode extra = configs.read(json);
+    for (String key : List.of("tip", "commonTips", "specialTips", "questions", "meaning"))
+      if (extra.has(key)) base.set(key, extra.path(key));
+    if (extra.path("accent").asText().equals(base.path("accent").asText()))
+      for (String key : List.of("parts", "syllables"))
+        if (extra.has(key)) base.set(key, extra.path(key));
+    StringBuilder ipa = new StringBuilder();
+    for (JsonNode s : extra.path("ipaSegments")) ipa.append(s.path("text").asText());
+    if (ipa.toString().equals(base.path("ipa").asText()))
+      base.set("ipaSegments", extra.path("ipaSegments"));
+    return base;
   }
 
   @Transactional
   public Detail save(String user, String id, SaveRequest request) {
     Entry e = editable(user, id);
     configs.validate(request.config(), e.kind());
+    ObjectNode before = current(e);
+    boolean studyChanged =
+        !request.config().path("questions").equals(before.path("questions"))
+            || !request.config().path("parts").equals(before.path("parts"))
+            || !request.config().path("syllables").equals(before.path("syllables"));
+    if (!e.scope().isEmpty())
+      ContentConfig.require(
+          request.config().path("pronunciations").equals(before.path("pronunciations")),
+          "个人教学内容不能修改公共发音资源");
     if (e.kind().equals("WORD"))
       ContentConfig.require(
           request.config().path("word").asText().equalsIgnoreCase(e.label()), "不能在编辑中更换单词，请创建新词条");
     int v = request.version() + 1;
     String sourceId = e.sourceId();
-    if (e.kind().equals("WORD")) sourceId = ensureWord(request.config(), sourceId);
+    ObjectNode stored = (ObjectNode) request.config().deepCopy();
+    stored.remove(List.of("audio", "pronunciations", "word", "wordId", "ipa", "variantKey"));
+    if (e.scope().isEmpty()) stored.remove("meaning");
     if (db.update(
             "UPDATE content_entries SET version=?,label=?,source_id=?,config_json=? WHERE id=? AND version=?",
             v,
             request.config().path(e.kind().equals("WORD") ? "word" : "ipa").asText(),
             sourceId,
-            request.config().toString(),
+            e.kind().equals("PHONEME") ? null : stored.toString(),
             id,
             request.version())
         != 1) throw conflict();
     if (e.kind().equals("WORD")) {
-      if (e.scope().isEmpty())
-        db.update(
-            "UPDATE words SET ipa=?,meaning=?,audio_url=? WHERE id=?",
-            request.config().path("ipa").asText(),
-            request.config().path("meaning").asText(),
-            request.config().path("audio").path("url").asText(""),
-            sourceId);
+      if (e.scope().isEmpty()) resources.saveWord(sourceId, request.config());
       linkLibraries(id, sourceId);
-      resetLibrariesForWord(e.scope(), sourceId);
+      if (studyChanged) resetLibrariesForWord(e.scope(), sourceId);
     } else if (e.scope().isEmpty()) {
-      // 旧课程以 IPA 关联音标，首次修改时补充稳定 ID，避免修改 IPA 后断开引用。
-      String oldIpa =
-          db.queryForObject("SELECT ipa FROM phonemes WHERE id=?", String.class, e.sourceId());
-      for (var unit :
-          db.queryForList(
-              "SELECT id,content_json FROM learning_units WHERE content_type='PHONEME_DETAIL'")) {
-        ObjectNode content = configs.read((String) unit.get("content_json"));
-        if (!content.has("phonemeId") && content.path("ipa").asText().equals(oldIpa)) {
-          content.put("phonemeId", e.sourceId());
-          db.update(
-              "UPDATE learning_units SET content_json=? WHERE id=?",
-              content.toString(),
-              unit.get("id"));
-        }
-      }
-      db.update(
-          "UPDATE phonemes SET ipa=?,category=?,group_code=?,audio_url=?,audio_us_url=?,audio_gb_url=?,detail_json=? WHERE id=?",
-          request.config().path("ipa").asText(),
-          request.config().path("category").asText(),
-          request.config().path("group").asText(),
-          request.config().path("audio").path("url").asText(""),
-          request.config().path("audio").path("usUrl").asText(""),
-          request.config().path("audio").path("gbUrl").asText(""),
-          request.config().toString(),
-          e.sourceId());
+      resources.savePhoneme(e.sourceId(), request.config());
     }
     return detail(user, id);
   }
@@ -231,11 +163,7 @@ public class ContentService {
   public void linkCurrentEntry(String id) {
     Entry entry = get(id);
     if (!entry.kind().equals("WORD")) return;
-    ObjectNode config = current(entry);
-    String wordId = ensureWord(config, entry.sourceId());
-    if (!wordId.equals(entry.sourceId()))
-      db.update("UPDATE content_entries SET source_id=? WHERE id=?", wordId, id);
-    linkLibraries(id, wordId);
+    linkLibraries(id, entry.sourceId());
   }
 
   private void linkLibraries(String id, String wordId) {
@@ -285,24 +213,6 @@ public class ContentService {
         library);
   }
 
-  private String ensureWord(JsonNode c, String candidate) {
-    String word = c.path("word").asText().toLowerCase(Locale.ROOT);
-    List<String> ids =
-        db.queryForList(
-            "SELECT id FROM words WHERE normalized_word=? AND accent='US'", String.class, word);
-    if (!ids.isEmpty()) return ids.getFirst();
-    // INSERT 后若并发生成碰到唯一约束，事务回滚，调用方可安全重试。
-    db.update(
-        "INSERT INTO words(id,normalized_word,display_word,ipa,meaning,accent,audio_url) VALUES(?,?,?,?,?,'US',?)",
-        candidate,
-        word,
-        c.path("word").asText(),
-        c.path("ipa").asText(),
-        c.path("meaning").asText(),
-        c.path("audio").path("url").asText(""));
-    return candidate;
-  }
-
   @Transactional
   public String generated(String user, ObjectNode config) {
     configs.validate(config, "WORD");
@@ -315,33 +225,30 @@ public class ContentService {
             word.toLowerCase(Locale.ROOT));
     if (!old.isEmpty()) return old.getFirst().id(); // 已有人工内容优先，生成任务不覆盖。
     String id = id("content"), source = id("w");
-    source = ensureWord(config, source);
+    source = resources.ensureWord(config, source);
+    ObjectNode stored = config.deepCopy();
+    stored.remove(List.of("word", "wordId", "ipa", "audio", "pronunciations", "variantKey"));
     db.update(
         "INSERT INTO content_entries(id,kind,source_id,scope_id,label,version,config_json) VALUES(?,'WORD',?,?,?,1,?)",
         id,
         source,
         user,
         word,
-        config.toString());
+        stored.toString());
     return id;
   }
 
   public ObjectNode current(String user, String kind, String source) {
-    List<Entry> found =
-        db.query(
-            "SELECT * FROM content_entries WHERE kind=? AND source_id=? AND (scope_id='' OR scope_id=?) ORDER BY CASE WHEN scope_id='' THEN 1 ELSE 0 END",
-            (r, n) -> entry(r),
-            kind,
-            source,
-            user);
-    return found.isEmpty() ? null : current(found.getFirst());
+    if (kind.equals("PHONEME"))
+      return resources.phonemes(List.of(source), resources.preferredAccent(user)).get(source);
+    var views = wordViews(user, List.of(source));
+    return views.containsKey(source) ? (ObjectNode) views.get(source).config() : null;
   }
 
   public JsonNode publicWord(String user, String source) {
     ObjectNode c = current(user, "WORD", source);
     if (c == null) {
-      Entry e = new Entry("", "WORD", source, "", "", 0);
-      c = base(e);
+      throw missing("单词不存在");
     }
     return configs.publicView(c);
   }
@@ -349,8 +256,7 @@ public class ContentService {
   public JsonNode publicPhoneme(String source) {
     ObjectNode c = current("", "PHONEME", source);
     if (c == null) {
-      Entry e = new Entry("", "PHONEME", source, "", "", 0);
-      c = base(e);
+      throw missing("音标不存在");
     }
     return configs.publicView(c);
   }
@@ -375,6 +281,7 @@ public class ContentService {
     parameters.add(user);
     parameters.addAll(ids);
     // 一次关联公共/个人当前配置，前端只接收完整对象。
+    var bases = resources.words(ids, resources.preferredAccent(user));
     db.query(
         """
       SELECT w.*, COALESCE(pe.config_json,ge.config_json) AS config_json,
@@ -389,14 +296,7 @@ public class ContentService {
         (org.springframework.jdbc.core.RowCallbackHandler)
             row -> {
               String json = row.getString("config_json");
-              ObjectNode config =
-                  json == null
-                      ? configs.emptyWord(
-                          row.getString("display_word"),
-                          row.getString("ipa"),
-                          row.getString("meaning"),
-                          row.getString("audio_url"))
-                      : configs.read(json);
+              ObjectNode config = teaching(bases.get(row.getString("id")), json);
               String personalId = row.getString("personal_content_id");
               String globalId = row.getString("global_content_id");
               String contentId = personalId != null ? personalId : globalId;

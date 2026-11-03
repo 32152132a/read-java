@@ -105,7 +105,11 @@ public class DeepSeekWordGenerator implements WordGenerator {
           ObjectNode result = (ObjectNode) items.get(index);
           ContentConfig.require(result.path("word").asText().equalsIgnoreCase(word), "模型返回的单词不匹配");
           result.put("word", word);
+          ContentConfig.require(result.path("accent").asText().equals("US"), "生成内容必须明确为美式口音");
           normalizeIpa(result);
+          var pronunciation = result.putObject("pronunciations").putObject("US");
+          pronunciation.put("ipa", result.path("ipa").asText()).put("audioUrl", "");
+          result.putObject("audio").put("url", "");
           configs.validate(result, "WORD");
           // 音频资源由可信导入流程维护，不采纳模型生成的地址。
           result.putObject("audio").put("url", "");

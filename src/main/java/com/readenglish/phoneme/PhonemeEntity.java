@@ -20,15 +20,6 @@ class PhonemeEntity {
   @Column(nullable = false)
   private String category;
 
-  @Column(name = "audio_url")
-  private String audioUrl;
-
-  @Column(name = "audio_us_url")
-  private String audioUsUrl;
-
-  @Column(name = "audio_gb_url")
-  private String audioGbUrl;
-
   @Column(name = "sort_order", nullable = false)
   private int sortOrder;
 
@@ -51,18 +42,6 @@ class PhonemeEntity {
 
   String getCategory() {
     return category;
-  }
-
-  String getAudioUrl() {
-    return audioUrl;
-  }
-
-  String getAudioUsUrl() {
-    return audioUsUrl;
-  }
-
-  String getAudioGbUrl() {
-    return audioGbUrl;
   }
 
   int getSortOrder() {

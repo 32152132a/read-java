@@ -15,13 +15,7 @@ class WordEntity {
   private String displayWord;
 
   @Column(nullable = false)
-  private String ipa;
-
-  @Column(nullable = false)
   private String meaning;
-
-  @Column(name = "audio_url")
-  private String audioUrl;
 
   protected WordEntity() {}
 
@@ -33,15 +27,7 @@ class WordEntity {
     return displayWord;
   }
 
-  String getIpa() {
-    return ipa;
-  }
-
   String getMeaning() {
     return meaning;
-  }
-
-  String getAudioUrl() {
-    return audioUrl;
   }
 }

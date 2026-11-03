@@ -12,11 +12,17 @@ public class ContentController {
   private final ContentService contents;
   private final ContentJobs jobs;
   private final WordGenerator generator;
+  private final com.readenglish.learningflow.LearningFeatures features;
 
-  public ContentController(ContentService contents, ContentJobs jobs, WordGenerator generator) {
+  public ContentController(
+      ContentService contents,
+      ContentJobs jobs,
+      WordGenerator generator,
+      com.readenglish.learningflow.LearningFeatures features) {
     this.contents = contents;
     this.jobs = jobs;
     this.generator = generator;
+    this.features = features;
   }
 
   @GetMapping("/content/capabilities")
@@ -26,6 +32,10 @@ public class ContentController {
         contents.isAdmin(jwt.getSubject()),
         "generationEnabled",
         generator.available(),
+        "phonemeAudioEnabled",
+        features.phonemeAudioEnabled(),
+        "phonemeListeningEnabled",
+        features.phonemeListeningEnabled(),
         "userId",
         jwt.getSubject());
   }

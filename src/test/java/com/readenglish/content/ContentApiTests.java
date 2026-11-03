@@ -406,6 +406,203 @@ class ContentApiTests {
         .isTrue();
   }
 
+  @Test
+  void changingOneWordAudioUpdatesExamplesLessonsAndPersonalLibraries() throws Exception {
+    String wordId =
+        db.queryForObject(
+            "SELECT w.id FROM words w JOIN word_pronunciations p ON p.word_id=w.id AND p.accent='GB' WHERE w.normalized_word='green'",
+            String.class);
+    String original =
+        db.queryForObject(
+            "SELECT audio_url FROM word_pronunciations WHERE word_id=? AND accent='GB'",
+            String.class,
+            wordId);
+    try {
+      var task =
+          jobs.create(
+              user,
+              UUID.randomUUID().toString(),
+              new ContentJobs.Create("统一资源验证", List.of("green")));
+      jobs.work();
+      String library = (String) task.get("libraryId");
+      String audio = "https://example.test/green-gb.mp3";
+      String admin =
+          tokens
+              .issueFor(new UserProfile("content-admin", "管理员", null, "US"), "test", false)
+              .accessToken();
+      String publicEntry =
+          db.queryForObject(
+              "SELECT id FROM content_entries WHERE kind='WORD' AND source_id=? AND scope_id=''",
+              String.class,
+              wordId);
+      var editable = call(admin, "GET", "/content/" + publicEntry, null, 200);
+      var edited = (ObjectNode) editable.path("config").deepCopy();
+      edited.withObject("pronunciations").withObject("GB").put("audioUrl", audio);
+      call(
+          admin,
+          "PUT",
+          "/content/" + publicEntry,
+          mapper
+              .createObjectNode()
+              .put("version", editable.path("version").asInt())
+              .set("config", edited),
+          200);
+      var detail = call(token, "GET", "/phonemes/p_2", null, 200);
+      JsonNode example = null;
+      for (JsonNode w : detail.path("exampleWords"))
+        if (w.path("wordId").asText().equals(wordId)) example = w;
+      assertThat(example).isNotNull();
+      assertThat(example.path("audioUrl").asText()).isEqualTo(audio);
+      var flow = call(token, "GET", "/learning-flow", null, 200);
+      var session =
+          call(
+              token,
+              "GET",
+              "/learning-stages/phoneme/session?flowNodeId="
+                  + flow.path("nodes").get(0).path("id").asText(),
+              null,
+              200);
+      assertThat(session.path("units").toString()).contains(audio);
+      var list = call(token, "GET", "/word-libraries/" + library + "/words", null, 200);
+      assertThat(list.path("items").get(0).path("audioUrl").asText()).isEqualTo(audio);
+      var add = mapper.createObjectNode();
+      add.putArray("libraryIds").add(library);
+      call(token, "POST", "/word-libraries/mine", add, 200);
+      var study = call(token, "POST", "/word-libraries/" + library + "/study", null, 200);
+      assertThat(study.path("items").get(0).path("audio").path("url").asText()).isEqualTo(audio);
+      String entry = list.path("items").get(0).path("contentId").asText();
+      String stored =
+          db.queryForObject(
+              "SELECT config_json FROM content_entries WHERE id=?", String.class, entry);
+      assertThat(mapper.readTree(stored).has("audio")).isFalse();
+      assertThat(mapper.readTree(stored).has("pronunciations")).isFalse();
+    } finally {
+      db.update(
+          "UPDATE word_pronunciations SET audio_url=? WHERE word_id=? AND accent='GB'",
+          original,
+          wordId);
+    }
+  }
+
+  @Test
+  void audioAndIpaAlwaysSelectTheSameAccentAndPersonalContentCannotReplaceThem() {
+    var c = word("accentcheck");
+    c.withObject("pronunciations")
+        .putObject("GB")
+        .put("ipa", "/ɡb/")
+        .put("audioUrl", "https://example.test/gb.mp3");
+    c.withObject("pronunciations").withObject("US").put("audioUrl", "https://example.test/us.mp3");
+    String entry = contents.generated(user, c);
+    String wordId = contents.get(entry).sourceId();
+    var us = contents.publicWord(user, wordId);
+    assertThat(us.path("ipa").asText()).isEqualTo("/test/");
+    assertThat(us.path("audio").path("url").asText()).endsWith("us.mp3");
+    db.update("UPDATE users SET accent='GB' WHERE id=?", user);
+    var gb = contents.publicWord(user, wordId);
+    assertThat(gb.path("ipa").asText()).isEqualTo("/ɡb/");
+    assertThat(gb.path("audio").path("url").asText()).endsWith("gb.mp3");
+    var edited = (ObjectNode) contents.detail(user, entry).config().deepCopy();
+    edited
+        .withObject("pronunciations")
+        .withObject("US")
+        .put("audioUrl", "https://example.test/other.mp3");
+    assertThatThrownBy(() -> contents.save(user, entry, new ContentService.SaveRequest(1, edited)))
+        .isInstanceOf(ApiException.class)
+        .hasMessageContaining("公共发音资源");
+    assertThat(contents.get(entry).version()).isEqualTo(1);
+    var onlyUs = word("onlyus");
+    String only = contents.generated(user, onlyUs);
+    assertThat(contents.publicWord(user, contents.get(only).sourceId()).path("accent").asText())
+        .isEqualTo("US");
+  }
+
+  @Test
+  void flagsReopenListeningOnlyWhenEveryTargetHasAudio() throws Exception {
+    var existing = db.queryForList("SELECT * FROM phoneme_pronunciations");
+    try {
+      db.update("UPDATE learning_features SET enabled=TRUE");
+      assertThat(
+              call(token, "GET", "/content/capabilities", null, 200)
+                  .path("phonemeAudioEnabled")
+                  .asBoolean())
+          .isTrue();
+      assertThat(
+              call(token, "GET", "/content/capabilities", null, 200)
+                  .path("phonemeListeningEnabled")
+                  .asBoolean())
+          .isFalse();
+      for (String id : db.queryForList("SELECT id FROM phonemes", String.class)) {
+        db.update("DELETE FROM phoneme_pronunciations WHERE phoneme_id=?", id);
+        db.update(
+            "INSERT INTO phoneme_pronunciations VALUES(?,'GB',?)",
+            id,
+            "https://example.test/phonemes/" + id + ".mp3");
+      }
+      assertThat(
+              call(token, "GET", "/content/capabilities", null, 200)
+                  .path("phonemeListeningEnabled")
+                  .asBoolean())
+          .isTrue();
+      assertThat(call(token, "GET", "/learning-flow/templates", null, 200).toString())
+          .contains("phoneme-quiz");
+      var flow = call(token, "GET", "/learning-flow", null, 200);
+      var input = mapper.createObjectNode().put("version", flow.path("version").asInt());
+      input.putArray("nodes").addObject().put("templateCode", "phoneme-quiz");
+      var saved = call(token, "PUT", "/learning-flow", input, 200);
+      var session =
+          call(
+              token,
+              "GET",
+              "/learning-stages/phoneme-quiz/session?flowNodeId="
+                  + saved.path("nodes").get(0).path("id").asText(),
+              null,
+              200);
+      assertThat(session.path("total").asInt()).isEqualTo(96);
+      for (JsonNode unit : session.path("units")) {
+        JsonNode content = unit.path("content");
+        assertThat(content.path("audioUrls").size()).isEqualTo(1);
+        assertThat(content.path("audioUrls").get(0).asText())
+            .endsWith(content.path("phonemeId").asText() + ".mp3");
+      }
+      db.update("UPDATE learning_features SET enabled=FALSE WHERE code='phoneme_listening'");
+      assertThat(call(token, "GET", "/learning-flow/templates", null, 200).toString())
+          .doesNotContain("phoneme-quiz");
+      assertThat(call(token, "GET", "/learning-flow", null, 200).path("nodes").isEmpty()).isTrue();
+    } finally {
+      db.update("UPDATE learning_features SET enabled=FALSE");
+      db.update("DELETE FROM phoneme_pronunciations");
+      for (var row : existing)
+        db.update(
+            "INSERT INTO phoneme_pronunciations VALUES(?,?,?)",
+            row.get("phoneme_id"),
+            row.get("accent"),
+            row.get("audio_url"));
+    }
+  }
+
+  @Test
+  void invalidExampleReferenceRollsBackTheWholePublicSave() throws Exception {
+    String admin =
+        tokens
+            .issueFor(new UserProfile("content-admin", "管理员", null, "US"), "test", false)
+            .accessToken();
+    var before = call(admin, "GET", "/content/content_p_2", null, 200);
+    var edited = (ObjectNode) before.path("config").deepCopy();
+    edited.put("description", "不应保存的说明");
+    ((ObjectNode) edited.path("exampleWords").get(0)).put("wordId", "missing-word");
+    call(
+        admin,
+        "PUT",
+        "/content/content_p_2",
+        mapper
+            .createObjectNode()
+            .put("version", before.path("version").asInt())
+            .set("config", edited),
+        400);
+    var after = call(admin, "GET", "/content/content_p_2", null, 200);
+    assertThat(after).isEqualTo(before);
+  }
+
   JsonNode call(String token, String method, String path, JsonNode body, int expected)
       throws Exception {
     return callResponse(token, method, path, body, expected).path("data");

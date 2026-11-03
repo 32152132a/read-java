@@ -132,19 +132,12 @@ class IntegrationRegressionTests {
       JsonNode phonemeUnit = firstPhonemeDetail(session);
       String phonemeId = phonemeUnit.path("content").path("phonemeId").asText();
       String marker = "updated phoneme detail " + UUID.randomUUID();
-      String originalEntryConfig =
-          jdbc.queryForObject(
-              "select config_json from content_entries where kind='PHONEME' and source_id=? and scope_id=''",
-              String.class,
-              phonemeId);
       String originalDetail =
           jdbc.queryForObject(
               "select detail_json from phonemes where id=?", String.class, phonemeId);
 
       try {
-        var updated =
-            (ObjectNode)
-                mapper.readTree(originalEntryConfig == null ? originalDetail : originalEntryConfig);
+        var updated = (ObjectNode) mapper.readTree(originalDetail);
         updated.put("description", marker);
         var question = updated.withArray("questions").addObject();
         question
@@ -155,10 +148,7 @@ class IntegrationRegressionTests {
             .put("explanation", "this should not leak");
         question.putArray("options").addObject().put("id", "a").put("label", "A");
         question.withArray("options").addObject().put("id", "b").put("label", "B");
-        jdbc.update(
-            "update content_entries set config_json=? where kind='PHONEME' and source_id=? and scope_id=''",
-            updated.toString(),
-            phonemeId);
+        jdbc.update("update phonemes set detail_json=? where id=?", updated.toString(), phonemeId);
 
         JsonNode reopened = call(client, token, "GET", path, null);
         JsonNode currentPhoneme = firstPhonemeDetail(reopened).path("content");
@@ -168,10 +158,6 @@ class IntegrationRegressionTests {
         assertThat(currentPhoneme.toString()).doesNotContain("correctOptionId");
         assertThat(currentPhoneme.toString()).doesNotContain("this should not leak");
       } finally {
-        jdbc.update(
-            "update content_entries set config_json=? where kind='PHONEME' and source_id=? and scope_id=''",
-            originalEntryConfig,
-            phonemeId);
         jdbc.update("update phonemes set detail_json=? where id=?", originalDetail, phonemeId);
       }
     }

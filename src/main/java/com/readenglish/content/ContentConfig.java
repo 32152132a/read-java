@@ -44,7 +44,10 @@ public class ContentConfig {
     result.putArray("questions");
     result.putArray("commonTips");
     result.putArray("specialTips");
-    result.putObject("audio").put("url", audio == null ? "" : audio).put("objectKey", "");
+    result.putObject("audio").put("url", audio == null ? "" : audio);
+    var pronunciations = result.putObject("pronunciations");
+    if (ipa != null && !ipa.isBlank())
+      pronunciations.putObject("US").put("ipa", ipa).put("audioUrl", audio == null ? "" : audio);
     return result;
   }
 
@@ -60,6 +63,7 @@ public class ContentConfig {
     require(ipa.toString().equals(c.path("ipa").asText()), "音标片段拼接后必须等于完整 IPA");
     if (kind.equals("WORD")) {
       text(c, "word", 120);
+      optionalText(c, "variantKey", 64);
       require(c.path("word").asText().matches("[A-Za-z]+(?:['’-][A-Za-z]+)*"), "单词格式不正确");
       text(c, "meaning", 300);
       array(c, "syllables", 30);
@@ -100,21 +104,27 @@ public class ContentConfig {
       optionalText(c, "memoryTip", 1000);
       array(c, "exampleWords", 40);
       for (JsonNode w : c.path("exampleWords")) {
-        text(w, "word", 120);
-        text(w, "ipa", 160);
-        text(w, "meaning", 300);
-        url(w.path("audioUrl").asText(""));
+        text(w, "wordId", 64);
+        require(Set.of("US", "GB").contains(w.path("accent").asText()), "例词必须指定英式或美式口音");
       }
     }
     require(c.path("audio").isObject(), "audio 配置不能为空");
-    // 保存时同时写入 words/phonemes 的 VARCHAR(500) 字段。
+    require(c.path("pronunciations").isObject(), "缺少发音资源配置");
+    if (kind.equals("WORD")) require(!c.path("pronunciations").isEmpty(), "单词至少需要一种口音的 IPA");
+    for (String accent : c.path("pronunciations").propertyNames()) {
+      require(Set.of("US", "GB").contains(accent), "发音口音只能是 US 或 GB");
+      JsonNode p = c.path("pronunciations").path(accent);
+      require(p.isObject(), "发音资源格式不正确");
+      if (kind.equals("WORD")) text(p, "ipa", 160);
+      optionalText(p, "audioUrl", 500);
+      url(p.path("audioUrl").asText(""));
+    }
     optionalText(c.path("audio"), "url", 500);
     url(c.path("audio").path("url").asText(""));
     optionalText(c.path("audio"), "usUrl", 500);
     url(c.path("audio").path("usUrl").asText(""));
     optionalText(c.path("audio"), "gbUrl", 500);
     url(c.path("audio").path("gbUrl").asText(""));
-    optionalText(c.path("audio"), "objectKey", 500);
     array(c, "questions", 20);
     Set<String> ids = new HashSet<>();
     for (JsonNode q : c.path("questions")) {

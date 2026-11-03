@@ -29,7 +29,13 @@ public class LearningFlowService {
   private static final String COMPLETE_SCOPE = "learning-flow/current/complete";
   private static final List<String> DEFAULT_FLOW =
       List.of(
-          "phoneme", "phoneme-compare", "syllable", "ipa-decoding", "word-decoding", "evaluation");
+          "phoneme",
+          "phoneme-compare",
+          "phoneme-quiz",
+          "syllable",
+          "ipa-decoding",
+          "word-decoding",
+          "evaluation");
 
   private final FeatureTemplateRepository templateRepository;
   private final LearningFlowConfigRepository configRepository;
@@ -38,6 +44,7 @@ public class LearningFlowService {
   private final LearningFlowRunNodeRepository runNodeRepository;
   private final IdempotencyRecordRepository idempotencyRepository;
   private final ObjectMapper objectMapper;
+  private final LearningFeatures features;
 
   public LearningFlowService(
       FeatureTemplateRepository templateRepository,
@@ -46,7 +53,8 @@ public class LearningFlowService {
       LearningFlowRunRepository runRepository,
       LearningFlowRunNodeRepository runNodeRepository,
       IdempotencyRecordRepository idempotencyRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      LearningFeatures features) {
     this.templateRepository = templateRepository;
     this.configRepository = configRepository;
     this.nodeRepository = nodeRepository;
@@ -54,6 +62,7 @@ public class LearningFlowService {
     this.runNodeRepository = runNodeRepository;
     this.idempotencyRepository = idempotencyRepository;
     this.objectMapper = objectMapper;
+    this.features = features;
   }
 
   @Transactional
@@ -227,12 +236,11 @@ public class LearningFlowService {
     }
   }
 
-  // 听音资源确认前仅隐藏该阶段，保留数据库中的模板、题目和历史节点。
-  private static boolean isAvailable(String templateCode) {
-    return !"phoneme-quiz".equals(templateCode);
+  private boolean isAvailable(String templateCode) {
+    return !"phoneme-quiz".equals(templateCode) || features.phonemeListeningEnabled();
   }
 
-  private static int nextAvailablePosition(List<LearningFlowRunNodeEntity> nodes, int position) {
+  private int nextAvailablePosition(List<LearningFlowRunNodeEntity> nodes, int position) {
     while (position < nodes.size() && !isAvailable(nodes.get(position).getTemplateCode())) {
       position++;
     }

@@ -18,6 +18,8 @@ class LearningContentExpansionTests {
 
   @Autowired private JdbcTemplate jdbc;
   @Autowired private ObjectMapper objectMapper;
+  @Autowired private com.readenglish.content.ContentProjection projection;
+  @Autowired private com.readenglish.content.PronunciationResources resources;
 
   @Test
   void phonemeLessonsCoverEveryCatalogPhonemeOnce() throws Exception {
@@ -28,7 +30,7 @@ class LearningContentExpansionTests {
             row -> {
               String id = (String) row.get("id");
               catalog.put(id, (String) row.get("ipa"));
-              catalogDetails.put(id, readJson((String) row.get("detail_json")));
+              catalogDetails.put(id, resources.phonemes(java.util.List.of(id), "GB").get(id));
             });
 
     Map<String, String> covered = new HashMap<>();
@@ -54,7 +56,7 @@ class LearningContentExpansionTests {
               assertThat(content.path("pronunciationSteps").size()).isBetween(2, 3);
               assertThat(content.path("exampleWords").size()).isBetween(2, 3);
               assertThat(content.path("memoryTip").asText()).isNotBlank();
-              assertThat(content.path("speechFallback").asText()).isNotBlank();
+              assertThat(content.has("speechFallback")).isFalse();
               assertThat(catalogDetails.get(phonemeId).path("exampleWords").size())
                   .as("phoneme %s catalog examples", phonemeId)
                   .isBetween(2, 3);
@@ -131,8 +133,9 @@ class LearningContentExpansionTests {
                   });
               audioPairs.forEach(
                   audioPair -> {
-                    assertThat(audioPair.path("left").asText()).isNotBlank();
-                    assertThat(audioPair.path("right").asText()).isNotBlank();
+                    assertThat(audioPair.path("left").path("word").asText()).isNotBlank();
+                    assertThat(audioPair.path("right").path("word").asText()).isNotBlank();
+                    assertThat(audioPair.path("left").path("wordId").asText()).isNotBlank();
                     assertThat(audioPair.path("tip").asText()).isNotBlank();
                   });
 
@@ -216,7 +219,9 @@ class LearningContentExpansionTests {
 
   private JsonNode readJson(String contentJson) {
     try {
-      return objectMapper.readTree(contentJson);
+      var units = objectMapper.createArrayNode();
+      units.addObject().set("content", objectMapper.readTree(contentJson));
+      return projection.project("", units).get(0).path("content");
     } catch (Exception exception) {
       throw new AssertionError("learning unit content_json should be valid JSON", exception);
     }

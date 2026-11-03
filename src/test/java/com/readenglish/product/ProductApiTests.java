@@ -48,8 +48,7 @@ class ProductApiTests {
       assertThat(libraries.path("items").get(0).path("removable").booleanValue()).isFalse();
       assertThat(phonemes.path("groups").get(0).path("items").size()).isEqualTo(20);
       assertThat(phonemes.path("groups").get(1).path("items").size()).isEqualTo(28);
-      assertThat(phonemes.path("groups").get(0).path("items").get(0).path("fallbackWord").asText())
-          .isEqualTo("see");
+      assertThat(phonemes.path("groups").get(0).path("items").get(0).has("fallbackWord")).isFalse();
       assertThat(formerlyMappedPhoneme.path("audioUrl").asText()).isEmpty();
       assertThat(fallbackPhoneme.path("audioUrl").asText()).isEmpty();
     }
